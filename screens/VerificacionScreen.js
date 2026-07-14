@@ -1,0 +1,74 @@
+import { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { ComerciosPorTelefono } from '../supabase';
+import { COLORS, RADIUS } from '../theme';
+
+const CODIGO_DEMO = '1234';
+
+export default function VerificacionScreen({ route, navigation }) {
+  const { telefono } = route.params;
+  const [codigo, setCodigo] = useState('');
+  const [verificando, setVerificando] = useState(false);
+
+  async function confirmar() {
+    if (codigo !== CODIGO_DEMO) {
+      Alert.alert('Código incorrecto', `Para esta demo, usa el código ${CODIGO_DEMO}.`);
+      return;
+    }
+    setVerificando(true);
+    try {
+      const comercios = await ComerciosPorTelefono.listar(telefono);
+      if (comercios.length === 0) {
+        navigation.replace('RegistroNegocio', { telefono });
+      } else if (comercios.length === 1) {
+        navigation.replace('Home', { comercioId: comercios[0].id, comercioNombre: comercios[0].nombre });
+      } else {
+        navigation.replace('SeleccionarNegocio', { telefono });
+      }
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setVerificando(false);
+    }
+  }
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.titulo}>Confirma tu número</Text>
+      <Text style={styles.subtitulo}>Te enviamos un código por WhatsApp al {telefono}</Text>
+
+      <View style={styles.avisoDemo}>
+        <Text style={styles.avisoDemoTexto}>Modo demo: el código es {CODIGO_DEMO} (aún no conectamos SMS real)</Text>
+      </View>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Código de 4 dígitos"
+        keyboardType="number-pad"
+        maxLength={4}
+        value={codigo}
+        onChangeText={setCodigo}
+      />
+
+      <TouchableOpacity
+        style={[styles.boton, (codigo.length < 4 || verificando) && styles.botonDeshabilitado]}
+        disabled={codigo.length < 4 || verificando}
+        onPress={confirmar}
+      >
+        <Text style={styles.botonTexto}>{verificando ? 'Verificando...' : 'Confirmar'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.white, paddingTop: 80, paddingHorizontal: 26 },
+  titulo: { fontSize: 22, fontWeight: '600', color: COLORS.text },
+  subtitulo: { marginTop: 8, fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
+  avisoDemo: { marginTop: 20, backgroundColor: COLORS.warningBg, borderRadius: RADIUS.sm, padding: 12 },
+  avisoDemoTexto: { fontSize: 12, color: COLORS.warning, lineHeight: 17 },
+  input: { marginTop: 20, height: 52, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 16, fontSize: 15, color: COLORS.text, textAlign: 'center', letterSpacing: 6 },
+  boton: { marginTop: 20, backgroundColor: COLORS.primary, height: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  botonDeshabilitado: { opacity: 0.4 },
+  botonTexto: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
+});
