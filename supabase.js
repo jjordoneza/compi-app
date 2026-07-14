@@ -1,5 +1,5 @@
-const SUPABASE_URL = 'https://gaxugvogfxbwhhburrai.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdheHVndm9nZnhid2hoYnVycmFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4ODg1ODYsImV4cCI6MjA5OTQ2NDU4Nn0.wCD60L-Aa12kgDbkLukUsjFwEAExtMmtcLM3_uGf73U';
+export const SUPABASE_URL = 'https://gaxugvogfxbwhhburrai.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdheHVndm9nZnhid2hoYnVycmFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4ODg1ODYsImV4cCI6MjA5OTQ2NDU4Nn0.wCD60L-Aa12kgDbkLukUsjFwEAExtMmtcLM3_uGf73U';
 
 const HEADERS = {
   apikey: SUPABASE_ANON_KEY,
