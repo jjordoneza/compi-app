@@ -3,106 +3,25 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert } from 'rea
 import {
   ProveedoresMaestro, RelacionesExt, AbastecimientosExt,
   PedidosExt, PedidoItemsExt, ProductosRelacionExt, ProductosMaestro,
-  ProductosRelacion, ReabastecimientoAjustesExt,
+  Reabastecimiento,
 } from '../../supabase';
 import { COLORS, RADIUS, formatMoney } from '../../theme';
 
 const LIMITE_ABASTECIMIENTOS_STATS = 8;
-const MIN_COMPRAS = 3;
-const UMBRAL = 1.3;
 
-// --- Lógica del Motor de Reabastecimiento Predictivo (antes vivía en reabastecimiento.js) ---
-async function calcularSugerencia(comercioId) {
-  const [abastecimientos, relaciones, productosMaestro, ajustes, todosProductosRelacion] = await Promise.all([
-    AbastecimientosExt.listarPorComercio(comercioId),
-    RelacionesExt.listarPorComercio(comercioId),
-    ProductosMaestro.listar(),
-    ReabastecimientoAjustesExt.listarPorComercio(comercioId),
-    ProductosRelacion.listar(),
-  ]);
-
-  if (abastecimientos.length < MIN_COMPRAS) return null;
-
-  const pedidosPorAbastecimiento = await Promise.all(
-    abastecimientos.map((ab) => PedidosExt.listarPorAbastecimiento(ab.id))
-  );
-
-  const fechaPorAbastecimientoId = {};
-  abastecimientos.forEach((ab) => { fechaPorAbastecimientoId[ab.id] = new Date(ab.fecha); });
-
-  const todosPedidosConFecha = [];
-  pedidosPorAbastecimiento.forEach((pedidos, i) => {
-    const fecha = fechaPorAbastecimientoId[abastecimientos[i].id];
-    pedidos.forEach((p) => todosPedidosConFecha.push({ ...p, fecha }));
-  });
-
-  const itemsPorPedido = await Promise.all(
-    todosPedidosConFecha.map((p) => PedidoItemsExt.listarPorPedido(p.id))
-  );
-
-  const fechasPorProducto = {};
-  todosPedidosConFecha.forEach((pedido, idx) => {
-    const items = itemsPorPedido[idx];
-    items.forEach((it) => {
-      const pr = todosProductosRelacion.find((x) => x.id === it.producto_relacion_id);
-      if (!pr) return;
-      const productoId = pr.producto_id;
-      if (!fechasPorProducto[productoId]) fechasPorProducto[productoId] = new Set();
-      fechasPorProducto[productoId].add(pedido.fecha.toDateString());
-    });
-  });
-
-  const ahora = new Date();
-  const candidatos = [];
-
-  for (const [productoId, fechasSet] of Object.entries(fechasPorProducto)) {
-    const fechas = [...fechasSet].map((f) => new Date(f)).sort((a, b) => a - b);
-    if (fechas.length < MIN_COMPRAS) continue;
-
-    let sumaIntervalos = 0;
-    for (let i = 1; i < fechas.length; i++) {
-      sumaIntervalos += (fechas[i] - fechas[i - 1]) / (1000 * 60 * 60 * 24);
-    }
-    const promedioIntervalo = sumaIntervalos / (fechas.length - 1);
-    const ultimaCompra = fechas[fechas.length - 1];
-    const diasDesdeUltima = (ahora - ultimaCompra) / (1000 * 60 * 60 * 24);
-    const umbralDias = promedioIntervalo * UMBRAL;
-
-    if (diasDesdeUltima < umbralDias) continue;
-
-    const ajuste = ajustes.find((a) => a.producto_id === productoId);
-    if (ajuste && new Date(ajuste.no_sugerir_antes_de) > ahora) continue;
-
-    candidatos.push({
-      productoId,
-      diasDesdeUltima: Math.round(diasDesdeUltima),
-      promedioIntervalo: Math.round(promedioIntervalo),
-      ratio: diasDesdeUltima / umbralDias,
-    });
-  }
-
-  if (candidatos.length === 0) return null;
-
-  candidatos.sort((a, b) => b.ratio - a.ratio);
-  const elegido = candidatos[0];
-  const producto = productosMaestro.find((p) => p.id === elegido.productoId);
-
-  const relacionIds = relaciones.map((r) => r.id);
-  const opciones = todosProductosRelacion.filter(
-    (pr) => pr.producto_id === elegido.productoId && relacionIds.includes(pr.relacion_id)
-  );
-  const opcionElegida = opciones.find((o) => o.precio_pactado != null) || opciones[0];
-  if (!opcionElegida) return null;
-
+// El cálculo del Motor de Reabastecimiento Predictivo vive en el núcleo (Postgres):
+// RPC sugerencia_reabastecimiento. Ver docs/reabastecimiento-predictivo.md.
+async function obtenerSugerencia(comercioId) {
+  const fila = await Reabastecimiento.sugerencia(comercioId);
+  if (!fila || !fila.producto_relacion_id) return null;
   return {
-    productoId: elegido.productoId,
-    productoNombre: producto?.nombre || 'Producto',
-    diasDesdeUltima: elegido.diasDesdeUltima,
-    promedioIntervalo: elegido.promedioIntervalo,
-    productoRelacionId: opcionElegida.id,
+    productoId: fila.producto_id,
+    productoNombre: fila.producto_nombre || 'Producto',
+    productoRelacionId: fila.producto_relacion_id,
+    diasDesdeUltima: fila.dias_desde_ultima,
+    promedioIntervalo: Math.round(fila.promedio_intervalo),
   };
 }
-// --- Fin de la lógica del motor ---
 
 export default function InicioScreen({ navigation, route }) {
   const { comercioId, comercioNombre } = route.params || {};
@@ -127,7 +46,7 @@ export default function InicioScreen({ navigation, route }) {
 
       await cargarEstadisticas(abastecimientos.slice(0, LIMITE_ABASTECIMIENTOS_STATS), rels, todosProveedores, productos);
 
-      const sug = await calcularSugerencia(comercioId);
+      const sug = await obtenerSugerencia(comercioId);
       setSugerencia(sug);
     } catch (e) {
       Alert.alert('Error cargando', e.message);
