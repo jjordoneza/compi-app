@@ -93,11 +93,15 @@ export default function InicioScreen({ navigation, route }) {
       setProveedores(rels.map((r) => todosProveedores.find((p) => p.id === r.proveedor_id)).filter(Boolean));
       setUltimoAbastecimiento(abastecimientos[0] || null);
 
-      // Pantalla 28: proveedores vinculados que aún no tienen catálogo.
+      // Catálogos por relación: una sola carga, reutilizada aquí y en estadísticas.
       const catalogos = await Promise.all(rels.map((r) => ProductosRelacionExt.listarPorRelacion(r.id)));
-      setProveedoresPendientes(rels.filter((_, i) => catalogos[i].length === 0).length);
+      const cacheProductosRel = {};
+      rels.forEach((r, i) => { cacheProductosRel[r.id] = catalogos[i]; });
 
-      await cargarEstadisticas(abastecimientos.slice(0, LIMITE_ABASTECIMIENTOS_STATS), rels, todosProveedores, productos);
+      // Pantalla 28: proveedores vinculados que aún no tienen catálogo.
+      setProveedoresPendientes(rels.filter((r) => (cacheProductosRel[r.id] || []).length === 0).length);
+
+      await cargarEstadisticas(abastecimientos.slice(0, LIMITE_ABASTECIMIENTOS_STATS), rels, todosProveedores, productos, cacheProductosRel);
 
       let sug = await obtenerSugerencia(comercioId);
       if (sug) {
@@ -112,7 +116,7 @@ export default function InicioScreen({ navigation, route }) {
     }
   }
 
-  async function cargarEstadisticas(abastecimientos, rels, todosProveedores, productos) {
+  async function cargarEstadisticas(abastecimientos, rels, todosProveedores, productos, cacheProductosRel) {
     if (abastecimientos.length === 0) return setEstadisticas(null);
 
     const pedidosPorAbastecimiento = await Promise.all(
@@ -123,13 +127,6 @@ export default function InicioScreen({ navigation, route }) {
     const itemsPorPedido = await Promise.all(
       todosPedidos.map((p) => PedidoItemsExt.listarPorPedido(p.id))
     );
-
-    const relacionIdsUnicas = [...new Set(todosPedidos.map((p) => p.relacion_id))];
-    const productosRelPorRelacionArr = await Promise.all(
-      relacionIdsUnicas.map((relId) => ProductosRelacionExt.listarPorRelacion(relId))
-    );
-    const cacheProductosRel = {};
-    relacionIdsUnicas.forEach((relId, i) => { cacheProductosRel[relId] = productosRelPorRelacionArr[i]; });
 
     const conteoProveedor = {};
     const conteoProducto = {};
