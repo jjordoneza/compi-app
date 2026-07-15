@@ -86,26 +86,55 @@ export async function verificarOTP(telefonoE164, token) {
 
 async function refrescar() {
   if (!sesion?.refresh_token) return null;
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
-    method: 'POST',
-    headers: HEADERS_ANON,
-    body: JSON.stringify({ refresh_token: sesion.refresh_token }),
-  });
+
+  let res;
+  try {
+    res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: HEADERS_ANON,
+      body: JSON.stringify({ refresh_token: sesion.refresh_token }),
+    });
+  } catch (e) {
+    // Sin red / el fetch no llegó a completarse: no es un rechazo del servidor.
+    // Se sigue usando la sesión guardada tal cual, sin invalidarla.
+    return sesion;
+  }
+
+  if (res.ok) {
+    const data = await res.json().catch(() => null);
+    if (data?.access_token) {
+      await persistir(desdeRespuesta(data));
+    }
+    // 200 sin access_token sería inesperado; por precaución no invalida la sesión.
+    return sesion;
+  }
+
+  // El servidor respondió — solo se invalida si rechazó el refresh token
+  // explícitamente (token inválido/expirado/reusado). Otros errores (5xx, rate
+  // limit, etc.) no son un veredicto sobre el token: se conserva la sesión.
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.access_token) {
-    await persistir(null); // refresh inválido → sesión caída
+  const rechazoExplicito =
+    (res.status === 400 || res.status === 401) &&
+    (data.error === 'invalid_grant' || /refresh token/i.test(data.error_description || data.msg || ''));
+
+  if (rechazoExplicito) {
+    await persistir(null);
     return null;
   }
-  await persistir(desdeRespuesta(data));
   return sesion;
 }
 
-// Refresca si faltan menos de 60s para expirar (o ya expiró).
+// Refresca si faltan menos de 60s para expirar (o ya expiró). Nunca lanza: un
+// fallo de red no debe tumbar la restauración de sesión (ver refrescar()).
 export async function refrescarSiHaceFalta() {
   if (!sesion) return null;
   const ahora = Math.floor(Date.now() / 1000);
   if (sesion.expires_at && sesion.expires_at - ahora < 60) {
-    return refrescar();
+    try {
+      return await refrescar();
+    } catch (e) {
+      return sesion; // salvaguarda extra: nunca propagar hacia cargarSesion()
+    }
   }
   return sesion;
 }
