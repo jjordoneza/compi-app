@@ -16,6 +16,7 @@ import RelacionesScreen from './screens/RelacionesScreen';
 import RelacionDetalleScreen from './screens/RelacionDetalleScreen';
 import NuevoAbastecimientoScreen from './screens/NuevoAbastecimientoScreen';
 import ConfirmarPedidoScreen from './screens/tendero/ConfirmarPedidoScreen';
+import MiNegocioTenderoScreen from './screens/tendero/MiNegocioTenderoScreen';
 import PedidoEnviadoScreen from './screens/tendero/PedidoEnviadoScreen';
 import SeguimientoScreen from './screens/tendero/SeguimientoScreen';
 import ReabastecimientoRespuestaScreen from './screens/tendero/ReabastecimientoRespuestaScreen';
@@ -74,6 +75,11 @@ export default function App() {
             name="ConfirmarPedido"
             component={ConfirmarPedidoScreen}
             options={({ navigation }) => ({ title: 'Confirmar', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
+            name="MiNegocioTendero"
+            component={MiNegocioTenderoScreen}
+            options={({ navigation }) => ({ title: 'Mi negocio', headerLeft: () => <BotonVolver navigation={navigation} /> })}
           />
           <Stack.Screen name="PedidoEnviado" component={PedidoEnviadoScreen} options={{ headerShown: false }} />
           <Stack.Screen

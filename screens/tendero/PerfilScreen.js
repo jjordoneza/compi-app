@@ -9,7 +9,17 @@ export default function PerfilScreen({ navigation, route }) {
       <Text style={styles.titulo}>Perfil</Text>
       <Text style={styles.subtitulo}>{comercioNombre}</Text>
 
-      <TouchableOpacity style={styles.boton} onPress={() => navigation.navigate('SeleccionarNegocio')}>
+      <TouchableOpacity
+        style={styles.boton}
+        onPress={() => navigation.navigate('MiNegocioTendero', { comercioId })}
+      >
+        <Text style={styles.botonTexto}>Editar mi negocio</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.boton, { marginTop: 10 }]}
+        onPress={() => navigation.navigate('SeleccionarNegocio')}
+      >
         <Text style={styles.botonTexto}>Cambiar de negocio</Text>
       </TouchableOpacity>
 

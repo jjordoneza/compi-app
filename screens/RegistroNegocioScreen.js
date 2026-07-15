@@ -7,6 +7,8 @@ export default function RegistroNegocioScreen({ route, navigation }) {
   const { telefono } = route.params;
   const [nombre, setNombre] = useState('');
   const [barrio, setBarrio] = useState('');
+  const [direccion, setDireccion] = useState('');
+  const [detalles, setDetalles] = useState('');
   const [proveedoresTotales, setProveedoresTotales] = useState(5);
   const [guardando, setGuardando] = useState(false);
 
@@ -21,6 +23,8 @@ export default function RegistroNegocioScreen({ route, navigation }) {
       const creado = await Comercios.crear({
         nombre: nombre.trim(),
         barrio: barrio.trim(),
+        direccion: direccion.trim() || null,
+        detalles: detalles.trim() || null,
         telefono,
         proveedores_totales: proveedoresTotales,
       });
@@ -44,6 +48,17 @@ export default function RegistroNegocioScreen({ route, navigation }) {
 
         <Text style={styles.label}>Barrio</Text>
         <TextInput style={styles.input} placeholder="Ej. La América" value={barrio} onChangeText={setBarrio} />
+
+        <Text style={styles.label}>Dirección (opcional)</Text>
+        <TextInput style={styles.input} placeholder="Ej. Cra 45 #12-30" value={direccion} onChangeText={setDireccion} />
+
+        <Text style={styles.label}>Detalles de ubicación (opcional)</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej. Apto 302, Torre B, Urb. Los Robles"
+          value={detalles}
+          onChangeText={setDetalles}
+        />
 
         <View style={styles.card}>
           <Text style={styles.cardTitulo}>¿A cuántos proveedores le compras en total?</Text>
