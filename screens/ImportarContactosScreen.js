@@ -1,25 +1,18 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import * as Contacts from 'expo-contacts';
 import { ProveedoresMaestro, RelacionesExt } from '../supabase';
 import { detectarProveedores } from '../ai';
 import { COLORS, RADIUS } from '../theme';
 
-// Simulación de contactos crudos del teléfono (sin categoría) — la IA decide el resto
-const NOMBRES_CONTACTOS_SIMULADOS = [
-  'Don Pedro Huevos',
-  'Distri San José',
-  'Mamá',
-  'Panadería Doña Mercedes',
-  'Aseo Total',
-  'Carnes El Novillo',
-  'Juan (primo)',
-  'Ana Fisioterapia',
-];
+// Un teléfono puede tener cientos de contactos; acotamos lo que mandamos al LLM.
+const MAX_CONTACTOS = 200;
 
 export default function ImportarContactosScreen({ route, navigation }) {
   const { comercioId, comercioNombre } = route.params;
   const [analizando, setAnalizando] = useState(true);
   const [error, setError] = useState(null);
+  const [permisoDenegado, setPermisoDenegado] = useState(false);
   const [resultados, setResultados] = useState([]); // [{nombre, esProveedor, categoria}]
   const [seleccionados, setSeleccionados] = useState([]);
   const [guardando, setGuardando] = useState(false);
@@ -29,8 +22,24 @@ export default function ImportarContactosScreen({ route, navigation }) {
   async function analizar() {
     setAnalizando(true);
     setError(null);
+    setPermisoDenegado(false);
     try {
-      const detectados = await detectarProveedores(NOMBRES_CONTACTOS_SIMULADOS);
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        setPermisoDenegado(true);
+        return;
+      }
+
+      const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.Name] });
+      const nombres = [...new Set((data || []).map((c) => c.name).filter(Boolean))].slice(0, MAX_CONTACTOS);
+
+      if (nombres.length === 0) {
+        setResultados([]);
+        setSeleccionados([]);
+        return;
+      }
+
+      const detectados = await detectarProveedores(nombres);
       setResultados(detectados);
       // Preselecciona automáticamente los que la IA marcó como proveedor
       const indicesProveedores = detectados
@@ -69,7 +78,8 @@ export default function ImportarContactosScreen({ route, navigation }) {
           proveedor_id: proveedorCreado[0].id,
         });
       }
-      navigation.replace('Home', { comercioId, comercioNombre });
+      // Pasa al loop para armar el catálogo de cada proveedor, uno por uno.
+      navigation.replace('OnboardingProveedores', { comercioId, comercioNombre });
     } catch (e) {
       Alert.alert('Error importando', e.message);
     } finally {
@@ -82,6 +92,26 @@ export default function ImportarContactosScreen({ route, navigation }) {
       <View style={styles.centrado}>
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.cargandoTexto}>Revisando tus contactos con IA...</Text>
+      </View>
+    );
+  }
+
+  if (permisoDenegado) {
+    return (
+      <View style={styles.centrado}>
+        <Text style={styles.errorTitulo}>Necesitamos ver tus contactos</Text>
+        <Text style={styles.errorTexto}>
+          Los usamos solo para ayudarte a marcar cuáles son proveedores. Puedes darnos permiso o seguir sin esto — lo agregas cuando quieras.
+        </Text>
+        <TouchableOpacity style={styles.boton} onPress={analizar}>
+          <Text style={styles.botonTexto}>Dar permiso</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.boton, styles.botonSecundario]}
+          onPress={() => navigation.replace('Home', { comercioId, comercioNombre })}
+        >
+          <Text style={styles.botonSecundarioTexto}>Seguir sin esto</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -99,6 +129,23 @@ export default function ImportarContactosScreen({ route, navigation }) {
           onPress={() => navigation.replace('Home', { comercioId, comercioNombre })}
         >
           <Text style={styles.botonSecundarioTexto}>Omitir por ahora</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (resultados.length === 0) {
+    return (
+      <View style={styles.centrado}>
+        <Text style={styles.errorTitulo}>No encontramos proveedores</Text>
+        <Text style={styles.errorTexto}>
+          No detectamos proveedores entre tus contactos. Puedes agregarlos a mano más tarde desde la pestaña Proveedores.
+        </Text>
+        <TouchableOpacity
+          style={styles.boton}
+          onPress={() => navigation.replace('Home', { comercioId, comercioNombre })}
+        >
+          <Text style={styles.botonTexto}>Continuar</Text>
         </TouchableOpacity>
       </View>
     );

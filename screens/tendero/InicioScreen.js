@@ -76,6 +76,8 @@ export default function InicioScreen({ navigation, route }) {
   const [ultimoAbastecimiento, setUltimoAbastecimiento] = useState(null);
   const [estadisticas, setEstadisticas] = useState(null);
   const [sugerencia, setSugerencia] = useState(null);
+  const [proveedoresPendientes, setProveedoresPendientes] = useState(0);
+  const [avisoDescartado, setAvisoDescartado] = useState(false);
   const [cargando, setCargando] = useState(true);
 
   async function cargar() {
@@ -90,6 +92,10 @@ export default function InicioScreen({ navigation, route }) {
 
       setProveedores(rels.map((r) => todosProveedores.find((p) => p.id === r.proveedor_id)).filter(Boolean));
       setUltimoAbastecimiento(abastecimientos[0] || null);
+
+      // Pantalla 28: proveedores vinculados que aún no tienen catálogo.
+      const catalogos = await Promise.all(rels.map((r) => ProductosRelacionExt.listarPorRelacion(r.id)));
+      setProveedoresPendientes(rels.filter((_, i) => catalogos[i].length === 0).length);
 
       await cargarEstadisticas(abastecimientos.slice(0, LIMITE_ABASTECIMIENTOS_STATS), rels, todosProveedores, productos);
 
@@ -190,6 +196,21 @@ export default function InicioScreen({ navigation, route }) {
         </View>
       ) : (
         <>
+          {proveedoresPendientes > 0 && !avisoDescartado && (
+            <View style={styles.avisoCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.avisoTitulo}>Te faltan {proveedoresPendientes} proveedor(es) por catalogar</Text>
+                <Text style={styles.avisoTexto}>Arma su catálogo para poder pedirles.</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('OnboardingProveedores', { comercioId, comercioNombre })}>
+                  <Text style={styles.avisoLink}>Continuar →</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity onPress={() => setAvisoDescartado(true)} style={styles.avisoCerrar}>
+                <Text style={styles.avisoCerrarTexto}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {sugerencia && (
             <View style={styles.sugerenciaCard}>
               <Text style={styles.sugerenciaLabel}>✦ Según tu patrón de compra</Text>
@@ -289,6 +310,12 @@ const styles = StyleSheet.create({
   saludo: { fontSize: 13, color: COLORS.textSecondary },
   pregunta: { fontSize: 20, fontWeight: '600', color: COLORS.text, marginTop: 2 },
   emptyCard: { marginTop: 20, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: 20, alignItems: 'center', borderWidth: 0.5, borderColor: COLORS.borderLight },
+  avisoCard: { marginTop: 16, flexDirection: 'row', alignItems: 'flex-start', backgroundColor: COLORS.warningBg, borderRadius: RADIUS.md, padding: 14 },
+  avisoTitulo: { fontSize: 13, fontWeight: '600', color: COLORS.warning },
+  avisoTexto: { fontSize: 12, color: COLORS.warning, marginTop: 3, lineHeight: 16 },
+  avisoLink: { fontSize: 13, fontWeight: '700', color: COLORS.primary, marginTop: 8 },
+  avisoCerrar: { paddingHorizontal: 6, paddingVertical: 2 },
+  avisoCerrarTexto: { fontSize: 14, color: COLORS.warning },
   emptyTitulo: { fontSize: 16, fontWeight: '600', color: COLORS.text },
   emptyTexto: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', marginTop: 6 },
   sugerenciaCard: { marginTop: 16, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: '#C0DD97', padding: 16 },
