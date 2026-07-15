@@ -4,10 +4,7 @@ Este documento registra huecos de lógica, arquitectura y pantallas encontrados 
 
 ## Prioridad 1 — Bloquean el flujo básico o son riesgo de seguridad
 
-### 1. No existe pantalla para fijar el precio de un producto nuevo
-Cuando un producto se crea desde "Pegar pedido" o "Agrégalo tú mismo", se crea con `productos_relacion.precio_pactado = null` (correcto, va a cola de curaduría). Pero ninguna de las 27 pantallas del MVP permite a un tendero fijar o editar el precio que le paga a un proveedor por un producto en su relación. Sin esto, "Confirmar pedido" no puede mostrar un total real para productos nuevos.
-
-**Pendiente decidir:** ¿el tendero puede fijar su propio precio pactado directamente (por relación, sin pasar por curaduría — ya que el precio es suyo, no del catálogo global), o todo precio nuevo también pasa por aprobación admin? Recomendación: el precio es dato de la relación (privado de esa tienda), no del catálogo compartido — no debería necesitar aprobación admin, solo la existencia del producto/proveedor en el catálogo maestro sí la necesita.
+> **Gap #1 reclasificado a Prioridad 2 (15 jul 2026).** La premisa original ("no existe forma de fijar el precio") era incorrecta: el precio ya se puede fijar en 3 pantallas, así que no bloquea el flujo básico. Ver #1 en Prioridad 2.
 
 ### 2. Separación de roles admin/tendero
 El panel de admin vive temporalmente dentro de la pestaña Perfil de la app del tendero, con el mismo login. Esto es un riesgo real: cualquier tendero autenticado podría potencialmente acceder a funciones de curaduría o ver datos de otros comercios si no hay control de permisos explícito a nivel de backend (no solo ocultar el botón en la UI).
@@ -20,6 +17,18 @@ El agente de WhatsApp para proveedores (motor de enrutamiento, botones Confirmar
 **Pendiente decidir:** un mecanismo manual temporal (ej. el propio tendero marca "confirmado" tras hablar con el proveedor por su cuenta, o una pantalla admin simple para marcarlo) mientras el trámite de WhatsApp Business API se resuelve.
 
 ## Prioridad 2 — Riesgos estructurales, no bloquean uso inmediato
+
+### 1. Fricción: productos de "Pegar pedido" nacen sin precio (reclasificado de P1 → P2, 15 jul 2026)
+**Corrección de la premisa original** ("no existe pantalla para fijar el precio"): el tendero **sí puede** fijar `precio_pactado` directamente, sin cola de curaduría admin, en 3 lugares — el precio es dato privado de la relación tienda-proveedor y se escribe directo vía `ProductosRelacionExt.actualizar`:
+- **Detalle de proveedor** (`RelacionDetalleScreen`): "Poner precio" / "editar" por producto, y agregar un producto con precio.
+- **Nuevo abastecimiento** (`NuevoAbastecimientoScreen`): "Sin precio configurado · tócalo para ponerlo", guarda el precio inline mientras se arma el pedido.
+- **Confirmar pedido** (`ConfirmarPedidoScreen`): no bloquea confirmar; muestra "sin precio" por ítem, "Precio incompleto" por proveedor y total "Incompleto".
+
+Por eso **no bloquea el flujo básico** (baja de P1 a P2). El residual es de **fricción**: los productos creados desde "Pegar pedido" / "Catálogo detectado" (`PegarPedidoScreen`) y el loop de onboarding nacen con `precio_pactado = null` y ese flujo **no invita a ponerles precio ahí mismo** — quedan sin precio hasta que el tendero los tope por otra pantalla.
+
+**Decidido:** el precio se fija directo por el tendero, sin curaduría (ratifica el diseño ya implementado). La curaduría admin queda reservada solo para la **existencia** del producto/proveedor en el catálogo maestro compartido.
+
+**Pendiente (implementación):** campo de precio opcional por producto en "Catálogo detectado" (Pegar Pedido) + opcionalmente un empujón tocable "faltan N precios · ponlos ahora" en Confirmar pedido. Sin pantalla nueva ni cambios en el modelo de datos.
 
 ### 4. Cola de curaduría del admin sin pantallas
 `producto.md` documenta 4 tareas de curaduría (aprobar proveedores nuevos, fusionar duplicados, revisar promociones, validar productos nuevos) pero no existe ninguna pantalla diseñada para esto — ni en `pantallas.md` ni en código.
