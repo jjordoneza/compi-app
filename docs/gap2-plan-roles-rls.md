@@ -50,5 +50,8 @@ Cada fase va en su propio PR.
   key + la sesión del admin; RLS hace cumplir los poderes.
 - El primer admin se inserta a mano en el SQL Editor (el `admins` no tiene política
   de escritura desde el cliente).
-- `reclamar_comercios_por_telefono` compara `comercios.telefono` con
-  `auth.users.phone` (E.164). Verificar/normalizar el formato antes de producción.
+- `reclamar_comercios_por_telefono` (actualizado en `0004`) compara los **últimos
+  10 dígitos** del teléfono, ignorando `+`, espacios y código de país — porque
+  `comercios.telefono` se guarda crudo (sin `+57`) y `auth.users.phone` va en
+  E.164. Asume número nacional colombiano de 10 dígitos. Igual conviene normalizar
+  `comercios.telefono` a E.164 para consistencia (ver el UPDATE sugerido).
