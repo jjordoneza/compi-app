@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert } from 'react-native';
-import { ComerciosPorTelefono } from '../supabase';
+import { MisComercios, Cuenta } from '../supabase';
+import { verificarOTP } from '../auth';
 import { COLORS, RADIUS } from '../theme';
-
-const CODIGO_DEMO = '1234';
 
 export default function VerificacionScreen({ route, navigation }) {
   const { telefono } = route.params;
@@ -11,22 +10,24 @@ export default function VerificacionScreen({ route, navigation }) {
   const [verificando, setVerificando] = useState(false);
 
   async function confirmar() {
-    if (codigo !== CODIGO_DEMO) {
-      Alert.alert('Código incorrecto', `Para esta demo, usa el código ${CODIGO_DEMO}.`);
-      return;
-    }
+    if (codigo.length < 6) return;
     setVerificando(true);
     try {
-      const comercios = await ComerciosPorTelefono.listar(telefono);
+      await verificarOTP(telefono, codigo); // valida y deja la sesión activa
+
+      // Engancha comercios sembrados que coincidan con este teléfono (mejor esfuerzo).
+      try { await Cuenta.reclamarComercios(); } catch (e) { /* noop */ }
+
+      const comercios = await MisComercios.listar();
       if (comercios.length === 0) {
         navigation.replace('RegistroNegocio', { telefono });
       } else if (comercios.length === 1) {
         navigation.replace('Home', { comercioId: comercios[0].id, comercioNombre: comercios[0].nombre });
       } else {
-        navigation.replace('SeleccionarNegocio', { telefono });
+        navigation.replace('SeleccionarNegocio');
       }
     } catch (e) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Código incorrecto', e.message);
     } finally {
       setVerificando(false);
     }
@@ -35,24 +36,20 @@ export default function VerificacionScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <Text style={styles.titulo}>Confirma tu número</Text>
-      <Text style={styles.subtitulo}>Te enviamos un código por WhatsApp al {telefono}</Text>
-
-      <View style={styles.avisoDemo}>
-        <Text style={styles.avisoDemoTexto}>Modo demo: el código es {CODIGO_DEMO} (aún no conectamos SMS real)</Text>
-      </View>
+      <Text style={styles.subtitulo}>Te enviamos un código por SMS al {telefono}</Text>
 
       <TextInput
         style={styles.input}
-        placeholder="Código de 4 dígitos"
+        placeholder="Código de 6 dígitos"
         keyboardType="number-pad"
-        maxLength={4}
+        maxLength={6}
         value={codigo}
         onChangeText={setCodigo}
       />
 
       <TouchableOpacity
-        style={[styles.boton, (codigo.length < 4 || verificando) && styles.botonDeshabilitado]}
-        disabled={codigo.length < 4 || verificando}
+        style={[styles.boton, (codigo.length < 6 || verificando) && styles.botonDeshabilitado]}
+        disabled={codigo.length < 6 || verificando}
         onPress={confirmar}
       >
         <Text style={styles.botonTexto}>{verificando ? 'Verificando...' : 'Confirmar'}</Text>

@@ -1,11 +1,18 @@
 export const SUPABASE_URL = 'https://gaxugvogfxbwhhburrai.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdheHVndm9nZnhid2hoYnVycmFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4ODg1ODYsImV4cCI6MjA5OTQ2NDU4Nn0.wCD60L-Aa12kgDbkLukUsjFwEAExtMmtcLM3_uGf73U';
 
+// HEADERS es mutable a propósito: auth.js actualiza el Authorization con el
+// access_token del tendero logueado (o vuelve a la anon key al cerrar sesión).
+// Así todas las consultas de abajo usan el token vigente sin cambiar su código.
 const HEADERS = {
   apikey: SUPABASE_ANON_KEY,
   Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
   'Content-Type': 'application/json',
 };
+
+export function setAuthToken(token) {
+  HEADERS.Authorization = `Bearer ${token || SUPABASE_ANON_KEY}`;
+}
 
 async function manejar(res) {
   const texto = await res.text();
@@ -42,6 +49,38 @@ export const ComerciosExt = {
 export const ComerciosPorTelefono = {
   listar: (telefono) =>
     fetch(`${SUPABASE_URL}/rest/v1/comercios?telefono=eq.${encodeURIComponent(telefono)}&select=*`, { headers: HEADERS }).then(manejar),
+};
+
+// Comercios donde el usuario autenticado es miembro. RLS de comercio_miembros
+// (cm_select) ya filtra por auth.uid(), así que no hace falta pasar el user_id.
+export const MisComercios = {
+  listar: () =>
+    fetch(`${SUPABASE_URL}/rest/v1/comercio_miembros?select=comercios(*)`, { headers: HEADERS })
+      .then(manejar)
+      .then((rows) => (rows || []).map((r) => r.comercios).filter(Boolean)),
+};
+
+// RPCs de Fase 1 (crean/ligan comercios al usuario autenticado).
+export const Cuenta = {
+  crearComercio: (nombre, barrio, telefono, proveedoresTotales, direccion, detalles) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/crear_comercio`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({
+        p_nombre: nombre,
+        p_barrio: barrio,
+        p_telefono: telefono,
+        p_proveedores_totales: proveedoresTotales,
+        p_direccion: direccion || null,
+        p_detalles: detalles || null,
+      }),
+    }).then(manejar),
+  reclamarComercios: () =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/reclamar_comercios_por_telefono`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: '{}',
+    }).then(manejar),
 };
 
 export const RelacionesExt = {

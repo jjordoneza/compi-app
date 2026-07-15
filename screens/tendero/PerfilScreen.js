@@ -1,8 +1,15 @@
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { cerrarSesion } from '../../auth';
 import { COLORS, RADIUS } from '../../theme';
 
 export default function PerfilScreen({ navigation, route }) {
   const { comercioId, comercioNombre } = route.params || {};
+
+  async function salir() {
+    await cerrarSesion();
+    const root = navigation.getParent() || navigation;
+    root.reset({ index: 0, routes: [{ name: 'Login' }] });
+  }
 
   return (
     <View style={styles.container}>
@@ -21,6 +28,10 @@ export default function PerfilScreen({ navigation, route }) {
         onPress={() => navigation.navigate('SeleccionarNegocio')}
       >
         <Text style={styles.botonTexto}>Cambiar de negocio</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.boton, { marginTop: 10 }]} onPress={salir}>
+        <Text style={styles.botonTexto}>Cerrar sesión</Text>
       </TouchableOpacity>
 
       <View style={styles.divisorLinea} />

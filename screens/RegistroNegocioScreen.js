@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { Comercios } from '../supabase';
+import { Cuenta } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
 
 export default function RegistroNegocioScreen({ route, navigation }) {
@@ -20,16 +20,17 @@ export default function RegistroNegocioScreen({ route, navigation }) {
     if (!nombre.trim()) return;
     setGuardando(true);
     try {
-      const creado = await Comercios.crear({
-        nombre: nombre.trim(),
-        barrio: barrio.trim(),
-        direccion: direccion.trim() || null,
-        detalles: detalles.trim() || null,
-        telefono,
-        proveedores_totales: proveedoresTotales,
-      });
-      const comercioId = creado[0].id;
-      navigation.replace('ImportarContactos', { comercioId, comercioNombre: nombre.trim() });
+      // RPC crear_comercio: crea el comercio y la membresía del usuario atómicamente.
+      const creado = await Cuenta.crearComercio(
+        nombre.trim(),
+        barrio.trim(),
+        telefono || null,
+        proveedoresTotales,
+        direccion.trim() || null,
+        detalles.trim() || null
+      );
+      const comercio = Array.isArray(creado) ? creado[0] : creado;
+      navigation.replace('ImportarContactos', { comercioId: comercio.id, comercioNombre: nombre.trim() });
     } catch (e) {
       Alert.alert('Error guardando', e.message);
     } finally {
