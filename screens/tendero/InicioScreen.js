@@ -24,6 +24,7 @@ async function obtenerSugerencia(comercioId) {
     // crudos, para instrumentación:
     _promedioIntervaloRaw: fila.promedio_intervalo,
     _umbralDias: fila.umbral_dias,
+    _multiplicadorUsado: fila.multiplicador_usado,
   };
 }
 
@@ -44,17 +45,13 @@ async function registrarSugerencia(comercioId, sug) {
     )
   );
 
-  // Se deriva del propio output de la RPC (umbral = promedio × multiplicador), así
-  // refleja el multiplicador que realmente usó la RPC y no una constante del cliente.
-  const multiplicadorUsado =
-    sug._promedioIntervaloRaw > 0 ? sug._umbralDias / sug._promedioIntervaloRaw : null;
-
   const payload = {
     comercio_id: comercioId,
     producto_id: sug.productoId,
     producto_relacion_id: sug.productoRelacionId,
     promedio_intervalo: sug._promedioIntervaloRaw,
-    multiplicador_usado: multiplicadorUsado,
+    // Valor exacto que devolvió la RPC (no derivado ni constante del cliente).
+    multiplicador_usado: sug._multiplicadorUsado,
     umbral_dias: sug._umbralDias,
     dias_desde_ultima: sug.diasDesdeUltima,
     respuesta: 'pendiente',
