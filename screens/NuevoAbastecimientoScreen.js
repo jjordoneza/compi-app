@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ProveedoresMaestro, ProductosMaestro, RelacionesExt, ProductosRelacionExt,
   PedidoItemsFull,
@@ -12,6 +13,7 @@ function limpiarNumero(texto) {
 }
 
 export default function NuevoAbastecimientoScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const { comercioId, comercioNombre, repetirDeId, sugerirProductoRelacionId, precargarCantidades } = route.params;
   const [proveedores, setProveedores] = useState([]);
   const [productosPorRelacion, setProductosPorRelacion] = useState({});
@@ -157,7 +159,7 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140 }}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}>
         <Text style={styles.titulo}>
           {repetirDeId ? 'Repetir abastecimiento' : precargarCantidades ? 'Pedido desde WhatsApp' : sugerirProductoRelacionId ? 'Reponer sugerido' : 'Nuevo abastecimiento'}
         </Text>
@@ -241,7 +243,7 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
         ))}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
         <View style={styles.footerFila}>
           <Text style={styles.footerTexto}>{totalProductos} producto(s) seleccionados</Text>
           {totalEstimado != null ? (
