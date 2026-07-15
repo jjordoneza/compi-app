@@ -24,7 +24,8 @@ export default function OnboardingProveedoresScreen({ route, navigation }) {
     setPendientes(sinCatalogo);
   }, [comercioId]);
 
-  // Al volver de PegarPedido, recarga para que el proveedor recién catalogado salga de la lista.
+  // Al volver de PegarPedido o de RelacionDetalle (alta manual), recarga para que
+  // el proveedor recién catalogado salga de la lista.
   useFocusEffect(
     useCallback(() => {
       setPendientes(null);
@@ -69,7 +70,7 @@ export default function OnboardingProveedoresScreen({ route, navigation }) {
       <Text style={styles.progreso}>Proveedor {hechos + 1} de {total}</Text>
       <Text style={styles.titulo}>¿Qué le compras a {actual.prov?.nombre || 'este proveedor'}?</Text>
       <Text style={styles.subtitulo}>
-        Pega un pedido viejo de WhatsApp y armamos su catálogo. Así sabremos qué te vende cada quien.
+        Pega un pedido viejo de WhatsApp y armamos su catálogo automáticamente, o agrégalo tú mismo si prefieres.
       </Text>
 
       <TouchableOpacity
@@ -88,9 +89,21 @@ export default function OnboardingProveedoresScreen({ route, navigation }) {
 
       <TouchableOpacity
         style={styles.botonSecundario}
+        onPress={() =>
+          navigation.navigate('RelacionDetalle', {
+            relacionId: actual.rel.id,
+            proveedorNombre: actual.prov?.nombre || 'Proveedor',
+          })
+        }
+      >
+        <Text style={styles.botonSecundarioTexto}>Agregar productos manualmente</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.saltarBoton}
         onPress={() => setSaltados((prev) => [...prev, actual.rel.id])}
       >
-        <Text style={styles.botonSecundarioTexto}>Saltar este proveedor</Text>
+        <Text style={styles.saltarTexto}>Saltar este proveedor</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.terminar} onPress={irAHome}>
@@ -110,7 +123,9 @@ const styles = StyleSheet.create({
   botonTexto: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
   botonSecundario: { marginTop: 10, height: 48, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white },
   botonSecundarioTexto: { color: COLORS.text, fontSize: 14, fontWeight: '500' },
-  terminar: { marginTop: 16, height: 44, alignItems: 'center', justifyContent: 'center' },
+  saltarBoton: { marginTop: 14, height: 40, alignItems: 'center', justifyContent: 'center' },
+  saltarTexto: { color: COLORS.textSecondary, fontSize: 13 },
+  terminar: { marginTop: 4, height: 44, alignItems: 'center', justifyContent: 'center' },
   terminarTexto: { color: COLORS.textSecondary, fontSize: 13 },
   check: { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.successBg, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   checkTexto: { fontSize: 28, color: COLORS.success, fontWeight: '700' },
