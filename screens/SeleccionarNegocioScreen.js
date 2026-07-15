@@ -1,21 +1,20 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, FlatList, Alert } from 'react-native';
-import { Comercios, ComerciosPorTelefono } from '../supabase';
+import { MisComercios } from '../supabase';
+import { usuarioActual } from '../auth';
 import { COLORS, RADIUS } from '../theme';
 
-export default function SeleccionarNegocioScreen({ route, navigation }) {
-  const { telefono } = route.params || {};
+export default function SeleccionarNegocioScreen({ navigation }) {
   const [comercios, setComercios] = useState([]);
 
   useEffect(() => {
     cargar();
-  }, [telefono]);
+  }, []);
 
   async function cargar() {
     try {
-      const lista = telefono
-        ? await ComerciosPorTelefono.listar(telefono)
-        : await Comercios.listar(); // sin teléfono (ej. "Cambiar de negocio" desde Perfil): muestra todos
+      // Solo los comercios donde el usuario autenticado es miembro (RLS lo garantiza).
+      const lista = await MisComercios.listar();
       setComercios(lista);
     } catch (e) {
       Alert.alert('Error', e.message);
@@ -46,7 +45,7 @@ export default function SeleccionarNegocioScreen({ route, navigation }) {
 
       <TouchableOpacity
         style={styles.botonNuevo}
-        onPress={() => navigation.navigate('RegistroNegocio', { telefono: telefono || '' })}
+        onPress={() => navigation.navigate('RegistroNegocio', { telefono: usuarioActual()?.phone || '' })}
       >
         <Text style={styles.botonNuevoTexto}>+ Registrar otro negocio</Text>
       </TouchableOpacity>

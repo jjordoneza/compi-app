@@ -1,9 +1,28 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { aE164, enviarOTP } from '../auth';
 import { COLORS, RADIUS } from '../theme';
 
 export default function LoginScreen({ navigation }) {
   const [celular, setCelular] = useState('');
+  const [enviando, setEnviando] = useState(false);
+
+  async function continuar() {
+    const e164 = aE164(celular);
+    if (!e164) {
+      Alert.alert('Número inválido', 'Escribe tu celular a 10 dígitos (ej. 300 123 4567).');
+      return;
+    }
+    setEnviando(true);
+    try {
+      await enviarOTP(e164);
+      navigation.navigate('Verificacion', { telefono: e164 });
+    } catch (e) {
+      Alert.alert('No pudimos enviar el código', e.message);
+    } finally {
+      setEnviando(false);
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -20,11 +39,11 @@ export default function LoginScreen({ navigation }) {
       />
 
       <TouchableOpacity
-        style={[styles.boton, !celular.trim() && styles.botonDeshabilitado]}
-        disabled={!celular.trim()}
-        onPress={() => navigation.navigate('Verificacion', { telefono: celular.trim() })}
+        style={[styles.boton, (!celular.trim() || enviando) && styles.botonDeshabilitado]}
+        disabled={!celular.trim() || enviando}
+        onPress={continuar}
       >
-        <Text style={styles.botonTexto}>Continuar</Text>
+        <Text style={styles.botonTexto}>{enviando ? 'Enviando código...' : 'Continuar'}</Text>
       </TouchableOpacity>
     </View>
   );
