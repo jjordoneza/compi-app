@@ -1,4 +1,5 @@
 import { TouchableOpacity, Text } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SplashScreen from './screens/SplashScreen';
@@ -47,75 +48,77 @@ function BotonAlInicio({ navigation, route }) {
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: true,
-          headerTitleStyle: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
-          headerStyle: { backgroundColor: COLORS.white },
-        }}
-      >
-        <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Verificacion" component={VerificacionScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="RegistroNegocio" component={RegistroNegocioScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="ImportarContactos" component={ImportarContactosScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="OnboardingProveedores" component={OnboardingProveedoresScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="SeleccionarNegocio" component={SeleccionarNegocioScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Home" component={TabNavigator} options={{ headerShown: false }} />
-        <Stack.Screen
-          name="NuevoAbastecimiento"
-          component={NuevoAbastecimientoScreen}
-          options={({ navigation }) => ({ title: 'Nuevo pedido', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-        />
-        <Stack.Screen
-          name="ConfirmarPedido"
-          component={ConfirmarPedidoScreen}
-          options={({ navigation }) => ({ title: 'Confirmar', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-        />
-        <Stack.Screen name="PedidoEnviado" component={PedidoEnviadoScreen} options={{ headerShown: false }} />
-        <Stack.Screen
-          name="Seguimiento"
-          component={SeguimientoScreen}
-          options={({ navigation, route }) => ({ title: 'Seguimiento', headerLeft: () => <BotonAlInicio navigation={navigation} route={route} /> })}
-        />
-        <Stack.Screen name="RespuestaReabastecimiento" component={ReabastecimientoRespuestaScreen} options={{ headerShown: false }} />
-        <Stack.Screen
-          name="PegarPedido"
-          component={PegarPedidoScreen}
-          options={({ navigation }) => ({ title: 'Pegar pedido', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-        />
-        <Stack.Screen
-          name="CatalogoMaestro"
-          component={CatalogoMaestroScreen}
-          options={({ navigation }) => ({ title: 'Catálogo Maestro', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-        />
-        <Stack.Screen
-          name="MiNegocio"
-          component={MiNegocioScreen}
-          options={({ navigation }) => ({ title: 'Mi Negocio', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-        />
-        <Stack.Screen
-          name="Relaciones"
-          component={RelacionesScreen}
-          options={({ navigation }) => ({ title: 'Proveedores', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-        />
-        <Stack.Screen
-          name="RelacionDetalle"
-          component={RelacionDetalleScreen}
-          options={({ navigation }) => ({ title: 'Productos', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-        />
-        <Stack.Screen
-          name="PedidosAdmin"
-          component={PedidosAdminScreen}
-          options={({ navigation }) => ({ title: 'Pedidos (todos)', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-        />
-        <Stack.Screen
-          name="SugerenciasCambio"
-          component={SugerenciasCambioScreen}
-          options={({ navigation }) => ({ title: 'Sugerencias', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: true,
+            headerTitleStyle: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
+            headerStyle: { backgroundColor: COLORS.white },
+          }}
+        >
+          <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Verificacion" component={VerificacionScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="RegistroNegocio" component={RegistroNegocioScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ImportarContactos" component={ImportarContactosScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="OnboardingProveedores" component={OnboardingProveedoresScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="SeleccionarNegocio" component={SeleccionarNegocioScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Home" component={TabNavigator} options={{ headerShown: false }} />
+          <Stack.Screen
+            name="NuevoAbastecimiento"
+            component={NuevoAbastecimientoScreen}
+            options={({ navigation }) => ({ title: 'Nuevo pedido', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
+            name="ConfirmarPedido"
+            component={ConfirmarPedidoScreen}
+            options={({ navigation }) => ({ title: 'Confirmar', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen name="PedidoEnviado" component={PedidoEnviadoScreen} options={{ headerShown: false }} />
+          <Stack.Screen
+            name="Seguimiento"
+            component={SeguimientoScreen}
+            options={({ navigation, route }) => ({ title: 'Seguimiento', headerLeft: () => <BotonAlInicio navigation={navigation} route={route} /> })}
+          />
+          <Stack.Screen name="RespuestaReabastecimiento" component={ReabastecimientoRespuestaScreen} options={{ headerShown: false }} />
+          <Stack.Screen
+            name="PegarPedido"
+            component={PegarPedidoScreen}
+            options={({ navigation }) => ({ title: 'Pegar pedido', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
+            name="CatalogoMaestro"
+            component={CatalogoMaestroScreen}
+            options={({ navigation }) => ({ title: 'Catálogo Maestro', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
+            name="MiNegocio"
+            component={MiNegocioScreen}
+            options={({ navigation }) => ({ title: 'Mi Negocio', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
+            name="Relaciones"
+            component={RelacionesScreen}
+            options={({ navigation }) => ({ title: 'Proveedores', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
+            name="RelacionDetalle"
+            component={RelacionDetalleScreen}
+            options={({ navigation }) => ({ title: 'Productos', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
+            name="PedidosAdmin"
+            component={PedidosAdminScreen}
+            options={({ navigation }) => ({ title: 'Pedidos (todos)', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
+            name="SugerenciasCambio"
+            component={SugerenciasCambioScreen}
+            options={({ navigation }) => ({ title: 'Sugerencias', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
