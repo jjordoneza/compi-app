@@ -14,10 +14,8 @@ export default function RelacionDetalleScreen({ route }) {
   const [productosMaestro, setProductosMaestro] = useState([]);
   const [mostrarPicker, setMostrarPicker] = useState(false);
   const [busquedaProducto, setBusquedaProducto] = useState('');
-
-  const [productoAgregando, setProductoAgregando] = useState(null);
-  const [precioNuevo, setPrecioNuevo] = useState('');
-  const [guardandoNuevo, setGuardandoNuevo] = useState(false);
+  const [seleccionados, setSeleccionados] = useState([]); // producto_id[] marcados en el picker
+  const [agregandoVarios, setAgregandoVarios] = useState(false);
 
   const [editandoId, setEditandoId] = useState(null);
   const [precioEditado, setPrecioEditado] = useState('');
@@ -74,28 +72,31 @@ export default function RelacionDetalleScreen({ route }) {
     }
   }
 
-  function empezarAgregar(producto) {
-    setProductoAgregando(productoAgregando === producto.id ? null : producto.id);
-    setPrecioNuevo('');
+  function toggleSeleccionado(productoId) {
+    setSeleccionados((prev) =>
+      prev.includes(productoId) ? prev.filter((id) => id !== productoId) : [...prev, productoId]
+    );
   }
 
-  async function confirmarAgregar(producto) {
-    if (guardandoNuevo) return;
-    setGuardandoNuevo(true);
+  // Agrega todos los productos marcados de una vez, sin precio (se pone después,
+  // individualmente, con "Poner precio" en la lista principal — no bloquea el alta).
+  async function confirmarAgregarVarios() {
+    if (seleccionados.length === 0 || agregandoVarios) return;
+    setAgregandoVarios(true);
     try {
-      const creado = await ProductosRelacionExt.crear({
-        relacion_id: relacionId,
-        producto_id: producto.id,
-        precio_pactado: limpiarNumero(precioNuevo),
-      });
-      // Actualiza en memoria: agrega la nueva fila sin recargar todo
-      setProductosRelacion((prev) => [...prev, creado[0]]);
-      setProductoAgregando(null);
-      setPrecioNuevo('');
+      const creados = await Promise.all(
+        seleccionados.map((productoId) =>
+          ProductosRelacionExt.crear({ relacion_id: relacionId, producto_id: productoId, precio_pactado: null })
+        )
+      );
+      setProductosRelacion((prev) => [...prev, ...creados.map((c) => c[0])]);
+      setSeleccionados([]);
+      setBusquedaProducto('');
+      setMostrarPicker(false);
     } catch (e) {
       Alert.alert('Error guardando', e.message);
     } finally {
-      setGuardandoNuevo(false);
+      setAgregandoVarios(false);
     }
   }
 
@@ -261,7 +262,7 @@ export default function RelacionDetalleScreen({ route }) {
           </TouchableOpacity>
         ) : (
           <View>
-            <Text style={styles.subtitulo}>Elige un producto del catálogo general</Text>
+            <Text style={styles.subtitulo}>Elige uno o varios productos del catálogo general</Text>
             <TextInput
               style={styles.input}
               placeholder="Buscar producto..."
@@ -269,41 +270,42 @@ export default function RelacionDetalleScreen({ route }) {
               onChangeText={setBusquedaProducto}
             />
             {disponibles.map((producto) => {
-              const enEdicionNuevo = productoAgregando === producto.id;
+              const activo = seleccionados.includes(producto.id);
               return (
-                <View key={producto.id}>
-                  <TouchableOpacity
-                    style={[styles.itemPicker, enEdicionNuevo && styles.itemPickerActivo]}
-                    onPress={() => empezarAgregar(producto)}
-                  >
+                <TouchableOpacity
+                  key={producto.id}
+                  style={[styles.itemPicker, activo && styles.itemPickerActivo]}
+                  onPress={() => toggleSeleccionado(producto.id)}
+                >
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.itemNombre}>{producto.nombre}</Text>
                     <Text style={styles.itemSub}>{producto.presentacion}</Text>
-                  </TouchableOpacity>
-
-                  {enEdicionNuevo && (
-                    <View style={styles.panelNuevoPrecio}>
-                      <Text style={styles.label}>Precio que {proveedorNombre} te cobra (opcional)</Text>
-                      <View style={styles.filaEdicion}>
-                        <TextInput
-                          style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                          keyboardType="numeric"
-                          placeholder="Ej. 13500"
-                          value={precioNuevo}
-                          onChangeText={setPrecioNuevo}
-                        />
-                        <TouchableOpacity style={styles.botonMini} disabled={guardandoNuevo} onPress={() => confirmarAgregar(producto)}>
-                          <Text style={styles.botonMiniTexto}>{guardandoNuevo ? 'Guardando...' : 'Guardar'}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setProductoAgregando(null)}>
-                          <Text style={styles.botonMiniCancelarTexto}>Cancelar</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-                </View>
+                  </View>
+                  <View style={[styles.check, activo && styles.checkActivo]}>
+                    {activo && <Text style={styles.checkTexto}>✓</Text>}
+                  </View>
+                </TouchableOpacity>
               );
             })}
             {disponibles.length === 0 && <Text style={styles.vacio}>No hay productos que coincidan</Text>}
+
+            {seleccionados.length > 0 && (
+              <TouchableOpacity
+                style={[styles.boton, { marginTop: 12 }, agregandoVarios && { opacity: 0.5 }]}
+                disabled={agregandoVarios}
+                onPress={confirmarAgregarVarios}
+              >
+                <Text style={styles.botonTexto}>
+                  {agregandoVarios ? 'Agregando...' : `Agregar ${seleccionados.length} producto(s)`}
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.cancelarPicker}
+              onPress={() => { setMostrarPicker(false); setSeleccionados([]); setBusquedaProducto(''); }}
+            >
+              <Text style={styles.cancelarPickerTexto}>Cancelar</Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -327,9 +329,13 @@ const styles = StyleSheet.create({
   item: { backgroundColor: COLORS.white, padding: 14, borderRadius: RADIUS.md, marginBottom: 8, borderWidth: 0.5, borderColor: COLORS.borderLight },
   filaTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   eliminarTexto: { color: COLORS.error, fontSize: 12, fontWeight: '600' },
-  itemPicker: { backgroundColor: COLORS.white, padding: 12, borderRadius: RADIUS.md, marginBottom: 0, borderWidth: 1, borderColor: COLORS.border },
-  itemPickerActivo: { backgroundColor: COLORS.successBg, borderColor: COLORS.primary, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
-  panelNuevoPrecio: { backgroundColor: COLORS.successBg, borderWidth: 1, borderColor: COLORS.primary, borderTopWidth: 0, borderBottomLeftRadius: RADIUS.md, borderBottomRightRadius: RADIUS.md, padding: 12, marginBottom: 8 },
+  itemPicker: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.white, padding: 12, borderRadius: RADIUS.md, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border },
+  itemPickerActivo: { backgroundColor: COLORS.successBg, borderColor: COLORS.primary },
+  check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  checkActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  checkTexto: { color: COLORS.white, fontSize: 13, fontWeight: '700' },
+  cancelarPicker: { marginTop: 8, height: 40, alignItems: 'center', justifyContent: 'center' },
+  cancelarPickerTexto: { color: COLORS.textSecondary, fontSize: 13 },
   itemNombre: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   itemSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   precioTocable: { fontSize: 13, color: COLORS.primary, fontWeight: '600', marginTop: 8 },
