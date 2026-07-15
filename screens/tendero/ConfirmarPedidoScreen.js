@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Abastecimientos, Pedidos, PedidoItems } from '../../supabase';
 import { COLORS, RADIUS, formatMoney } from '../../theme';
 
 export default function ConfirmarPedidoScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const { comercioId, comercioNombre, gruposParaEnviar, totalEstimado } = route.params;
   const [enviando, setEnviando] = useState(false);
 
@@ -55,7 +57,7 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140, paddingTop: 20 }}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140 + insets.bottom, paddingTop: 20 }}>
         <Text style={styles.titulo}>Confirmar</Text>
         <Text style={styles.subtitulo}>Enviaremos esta solicitud a tus proveedores.</Text>
 
@@ -88,7 +90,7 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
         })}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
         <View style={styles.footerFila}>
           <Text style={styles.footerTexto}>Total estimado</Text>
           <Text style={styles.footerTotal}>
