@@ -26,6 +26,14 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Compi usa tus contactos para ayudarte a marcar cuáles son tus proveedores. No los compartimos ni los usamos para nada más."
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "d9237162-353d-4f92-bda7-cea031085d03"

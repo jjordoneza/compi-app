@@ -6,6 +6,7 @@ import LoginScreen from './screens/LoginScreen';
 import VerificacionScreen from './screens/VerificacionScreen';
 import RegistroNegocioScreen from './screens/RegistroNegocioScreen';
 import ImportarContactosScreen from './screens/ImportarContactosScreen';
+import OnboardingProveedoresScreen from './screens/OnboardingProveedoresScreen';
 import SeleccionarNegocioScreen from './screens/SeleccionarNegocioScreen';
 import TabNavigator from './screens/tendero/TabNavigator';
 import CatalogoMaestroScreen from './screens/CatalogoMaestroScreen';
@@ -59,6 +60,7 @@ export default function App() {
         <Stack.Screen name="Verificacion" component={VerificacionScreen} options={{ headerShown: false }} />
         <Stack.Screen name="RegistroNegocio" component={RegistroNegocioScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ImportarContactos" component={ImportarContactosScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="OnboardingProveedores" component={OnboardingProveedoresScreen} options={{ headerShown: false }} />
         <Stack.Screen name="SeleccionarNegocio" component={SeleccionarNegocioScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Home" component={TabNavigator} options={{ headerShown: false }} />
         <Stack.Screen
