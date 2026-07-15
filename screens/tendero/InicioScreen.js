@@ -8,14 +8,12 @@ import {
 import { COLORS, RADIUS, formatMoney } from '../../theme';
 
 const LIMITE_ABASTECIMIENTOS_STATS = 8;
-// Debe coincidir con el default de la RPC. Se pasa explícito para poder registrar
-// exactamente el multiplicador que produjo la sugerencia (recalibración futura).
-const MULTIPLICADOR = 1.3;
 
 // El cálculo del Motor de Reabastecimiento Predictivo vive en el núcleo (Postgres):
-// RPC sugerencia_reabastecimiento. Ver docs/reabastecimiento-predictivo.md.
+// RPC sugerencia_reabastecimiento. El multiplicador lo gobierna la RPC (no se pasa
+// desde el cliente), para poder recalibrarlo en SQL sin tocar la app.
 async function obtenerSugerencia(comercioId) {
-  const fila = await Reabastecimiento.sugerencia(comercioId, MULTIPLICADOR);
+  const fila = await Reabastecimiento.sugerencia(comercioId);
   if (!fila || !fila.producto_relacion_id) return null;
   return {
     productoId: fila.producto_id,
@@ -46,17 +44,33 @@ async function registrarSugerencia(comercioId, sug) {
     )
   );
 
-  const creada = await ReabastecimientoSugerencias.crear({
+  // Se deriva del propio output de la RPC (umbral = promedio × multiplicador), así
+  // refleja el multiplicador que realmente usó la RPC y no una constante del cliente.
+  const multiplicadorUsado =
+    sug._promedioIntervaloRaw > 0 ? sug._umbralDias / sug._promedioIntervaloRaw : null;
+
+  const payload = {
     comercio_id: comercioId,
     producto_id: sug.productoId,
     producto_relacion_id: sug.productoRelacionId,
     promedio_intervalo: sug._promedioIntervaloRaw,
-    multiplicador_usado: MULTIPLICADOR,
+    multiplicador_usado: multiplicadorUsado,
     umbral_dias: sug._umbralDias,
     dias_desde_ultima: sug.diasDesdeUltima,
     respuesta: 'pendiente',
-  });
-  return { ...sug, sugerenciaId: creada[0].id };
+  };
+
+  try {
+    const creada = await ReabastecimientoSugerencias.crear(payload);
+    return { ...sug, sugerenciaId: creada[0].id };
+  } catch (e) {
+    // El índice único parcial puede rechazar un insert concurrente (doble focus):
+    // reusa la fila pendiente que sí ganó la carrera.
+    const otras = await ReabastecimientoSugerenciasExt.listarPendientesPorComercio(comercioId);
+    const ganadora = otras.find((s) => s.producto_id === sug.productoId);
+    if (ganadora) return { ...sug, sugerenciaId: ganadora.id };
+    throw e;
+  }
 }
 
 export default function InicioScreen({ navigation, route }) {

@@ -22,9 +22,12 @@ create table if not exists reabastecimiento_sugerencias (
   created_at            timestamptz not null default now()
 );
 
--- Una sola sugerencia pendiente por comercio a la vez (búsqueda rápida).
-create index if not exists idx_reab_sug_comercio_pendiente
-  on reabastecimiento_sugerencias (comercio_id)
+-- Impide dos sugerencias PENDIENTES para el mismo (comercio, producto): la base
+-- rechaza un segundo insert aunque la app dispare dos casi simultáneos (no se
+-- confía solo en la verificación previa del cliente). También sirve de índice de
+-- búsqueda por comercio (columna izquierda).
+create unique index if not exists uq_reab_sug_comercio_producto_pendiente
+  on reabastecimiento_sugerencias (comercio_id, producto_id)
   where respuesta = 'pendiente';
 
 comment on table reabastecimiento_sugerencias is
