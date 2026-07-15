@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
-import { ProveedoresMaestro, RelacionesExt, SugerenciasCambio, SugerenciasCambioExt, Comercios, Relaciones } from '../../supabase';
+import { ProveedoresMaestro, RelacionesExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresRecomendados } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
 
 const ETIQUETAS_SUG = { pendiente: 'Pendiente', aprobada: 'Aprobado', rechazada: 'Rechazado' };
@@ -40,17 +40,10 @@ export default function ProveedoresTabScreen({ navigation, route }) {
           .filter((x) => x.proveedor)
       );
 
-      const miComercio = await Comercios.listar();
-      const comercioActual = miComercio.find((c) => c.id === comercioId);
-      if (comercioActual?.barrio) {
-        const comerciosDelBarrio = miComercio.filter((c) => c.barrio === comercioActual.barrio && c.id !== comercioId);
-        const idsComerciosBarrio = comerciosDelBarrio.map((c) => c.id);
-        const todasLasRelaciones = await Relaciones.listar();
-        const idsProveedoresDelBarrio = new Set(
-          todasLasRelaciones.filter((r) => idsComerciosBarrio.includes(r.comercio_id)).map((r) => r.proveedor_id)
-        );
-        setProveedoresDelBarrio([...idsProveedoresDelBarrio]);
-      }
+      // RPC (Fase 3): devuelve solo los proveedor_id de otros comercios del mismo
+      // barrio, sin exponer sus filas — RLS ya no permite leerlas directo.
+      const idsProveedoresDelBarrio = await ProveedoresRecomendados.porBarrio(comercioId);
+      setProveedoresDelBarrio(idsProveedoresDelBarrio);
     } catch (e) {
       Alert.alert('Error cargando', e.message);
     }

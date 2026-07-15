@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import * as Contacts from 'expo-contacts';
-import { ProveedoresMaestro, RelacionesExt } from '../supabase';
+import { ProveedoresSugeridos } from '../supabase';
+import { usuarioActual } from '../auth';
 import { detectarProveedores } from '../ai';
 import { COLORS, RADIUS } from '../theme';
 
@@ -66,20 +67,26 @@ export default function ImportarContactosScreen({ route, navigation }) {
     }
     setGuardando(true);
     try {
+      // Fase 3: el tendero ya no crea proveedores_maestro directo — se propone
+      // a la cola de curaduría (comparten identidad global entre todas las
+      // tiendas, así que necesitan aprobación). El vínculo con este comercio se
+      // crea recién cuando se aprueba, no antes.
       for (const i of seleccionados) {
         const contacto = resultados[i];
-        const proveedorCreado = await ProveedoresMaestro.crear({
+        await ProveedoresSugeridos.crear({
+          comercio_id: comercioId,
+          sugerido_por: usuarioActual()?.id || null,
           nombre: contacto.nombre,
           categoria: contacto.categoria === 'Otro' ? '' : contacto.categoria,
           canal: 'whatsapp',
-        });
-        await RelacionesExt.crear({
-          comercio_id: comercioId,
-          proveedor_id: proveedorCreado[0].id,
+          estado: 'pendiente',
         });
       }
-      // Pasa al loop para armar el catálogo de cada proveedor, uno por uno.
-      navigation.replace('OnboardingProveedores', { comercioId, comercioNombre });
+      Alert.alert(
+        'Enviado a revisión',
+        `Enviamos ${seleccionados.length} proveedor(es) a revisión. En cuanto se aprueben, podrás armar su catálogo desde la pestaña Proveedores.`,
+        [{ text: 'Entendido', onPress: () => navigation.replace('Home', { comercioId, comercioNombre }) }]
+      );
     } catch (e) {
       Alert.alert('Error importando', e.message);
     } finally {

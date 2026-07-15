@@ -34,6 +34,10 @@ export const Comercios = tabla('comercios');
 export const ProveedoresMaestro = tabla('proveedores_maestro');
 export const Relaciones = tabla('relaciones');
 export const ProductosMaestro = tabla('productos_maestro');
+// Colas de curaduría (gap #2 Fase 3): el tendero propone, el admin aprueba.
+// Ver docs/gap2-plan-roles-rls.md y supabase/migrations/0003 y 0007.
+export const ProveedoresSugeridos = tabla('proveedores_sugeridos');
+export const ProductosSugeridos = tabla('productos_sugeridos');
 export const ProductosRelacion = tabla('productos_relacion');
 export const Abastecimientos = tabla('abastecimientos');
 export const Pedidos = tabla('pedidos');
@@ -81,6 +85,19 @@ export const Cuenta = {
       headers: HEADERS,
       body: '{}',
     }).then(manejar),
+};
+
+// RPC de Fase 3: proveedores usados por otros comercios del mismo barrio, sin
+// exponer filas de esos comercios/relaciones al cliente (RLS los oculta).
+export const ProveedoresRecomendados = {
+  porBarrio: (comercioId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/proveedores_recomendados_barrio`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ p_comercio_id: comercioId }),
+    })
+      .then(manejar)
+      .then((rows) => (rows || []).map((r) => r.proveedor_id)),
 };
 
 export const RelacionesExt = {
