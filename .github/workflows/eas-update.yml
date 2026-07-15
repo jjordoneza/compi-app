@@ -1,0 +1,53 @@
+name: EAS Update (OTA)
+
+# Publica una actualización OTA a EAS Update. Corre en los runners de GitHub —
+# no requiere instalar la CLI de EAS en tu máquina.
+#
+# - Push a main con cambios de JS/assets: publica automáticamente al canal
+#   "preview" (el mismo que usa el build eas.json > build.preview).
+# - Manual (pestaña Actions → este workflow → "Run workflow"): permite elegir
+#   el canal a publicar.
+#
+# Requiere el secreto EXPO_TOKEN en el repo (Settings → Secrets and variables
+# → Actions), generado desde expo.dev → cuenta → Access Tokens. Ambos pasos son
+# solo de dashboard/web, sin CLI.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Canal de EAS Update a publicar'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Publish update
+        run: eas update --branch "${{ github.event.inputs.channel || 'preview' }}" --message "${{ github.event.head_commit.message || 'Manual publish' }}" --non-interactive
