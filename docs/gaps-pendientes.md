@@ -33,6 +33,18 @@ Por eso **no bloquea el flujo básico** (baja de P1 a P2). El residual es de **f
 ### 4. Cola de curaduría del admin sin pantallas
 `producto.md` documenta 4 tareas de curaduría (aprobar proveedores nuevos, fusionar duplicados, revisar promociones, validar productos nuevos) pero no existe ninguna pantalla diseñada para esto — ni en `pantallas.md` ni en código.
 
+> ⚠️ **BLOQUEANTE PARA PRODUCCIÓN (15 jul 2026).** Con gap #2 Fase 3 (RLS +
+> colas `proveedores_sugeridos`/`productos_sugeridos`), el tendero ya no crea
+> proveedores/productos nuevos directo — quedan pendientes de aprobación. Por
+> ahora el único usuario probando es el dueño del proyecto, que aprueba manual
+> por SQL Editor (puente aceptado mientras no exista panel admin). **Antes de
+> dar acceso a cualquier tendero real que no sea el dueño**, hace falta
+> construir al menos las **2 pantallas mínimas de aprobación** (proveedores
+> nuevos, productos nuevos) — sin esto, cualquier tendero real que agregue un
+> proveedor/producto genuinamente nuevo queda bloqueado indefinidamente sin que
+> nadie más pueda aprobarlo. No es solo mejora de UX, es requisito de
+> lanzamiento.
+
 ### 5. Sin decisión de infraestructura de notificaciones push
 La pantalla de Notificaciones y el diseño de "notificaciones agrupadas por comercio" del Motor de Reabastecimiento Predictivo asumen push funcionando, pero no hay decisión de qué servicio usar (candidato natural: Expo Push Notifications, ya que el proyecto es Expo) ni manejo de permisos/tokens.
 
