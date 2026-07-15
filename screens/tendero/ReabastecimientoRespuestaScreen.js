@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
-import { ReabastecimientoAjustes } from '../../supabase';
+import { ReabastecimientoAjustes, ReabastecimientoSugerencias } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
 
 const MOTIVOS = ['Otro proveedor', 'Otra app', 'Aún tenía inventario'];
 
 export default function ReabastecimientoRespuestaScreen({ route, navigation }) {
-  const { comercioId, comercioNombre, productoId, productoNombre, promedioIntervalo } = route.params;
+  const { comercioId, comercioNombre, productoId, productoNombre, promedioIntervalo, sugerenciaId } = route.params;
   const [guardando, setGuardando] = useState(false);
 
   async function guardarYVolver(motivo) {
@@ -15,12 +15,22 @@ export default function ReabastecimientoRespuestaScreen({ route, navigation }) {
       const noSugerirAntesDe = new Date();
       noSugerirAntesDe.setDate(noSugerirAntesDe.getDate() + promedioIntervalo);
 
-      await ReabastecimientoAjustes.crear({
+      const ajusteCreado = await ReabastecimientoAjustes.crear({
         comercio_id: comercioId,
         producto_id: productoId,
         no_sugerir_antes_de: noSugerirAntesDe.toISOString(),
         motivo: motivo || null,
+        sugerencia_id: sugerenciaId || null,
       });
+
+      // Instrumentación (PR-B): cierra el lazo de la sugerencia con su respuesta.
+      if (sugerenciaId) {
+        await ReabastecimientoSugerencias.actualizar(sugerenciaId, {
+          respuesta: 'pospuesta',
+          respondida_en: new Date().toISOString(),
+          ajuste_id: ajusteCreado?.[0]?.id || null,
+        });
+      }
 
       navigation.reset({ index: 0, routes: [{ name: 'Home', params: { comercioId, comercioNombre } }] });
     } catch (e) {

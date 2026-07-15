@@ -109,6 +109,14 @@ export const ReabastecimientoAjustesExt = {
     fetch(`${SUPABASE_URL}/rest/v1/reabastecimiento_ajustes?comercio_id=eq.${comercioId}&select=*`, { headers: HEADERS }).then(manejar),
 };
 
+export const ReabastecimientoSugerencias = tabla('reabastecimiento_sugerencias');
+
+export const ReabastecimientoSugerenciasExt = {
+  ...ReabastecimientoSugerencias,
+  listarPendientesPorComercio: (comercioId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/reabastecimiento_sugerencias?comercio_id=eq.${comercioId}&respuesta=eq.pendiente&select=*`, { headers: HEADERS }).then(manejar),
+};
+
 export const ProductosMaestroExt = {
   ...ProductosMaestro,
   buscarPorNombreExacto: async (nombre) => {
