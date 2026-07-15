@@ -116,3 +116,20 @@ export const ProductosMaestroExt = {
     return todos.find((p) => p.nombre.toLowerCase().trim() === nombre.toLowerCase().trim()) || null;
   },
 };
+
+// Motor de Reabastecimiento Predictivo — el cálculo vive en el núcleo (Postgres).
+// Ver supabase/migrations y docs/reabastecimiento-predictivo.md.
+export const Reabastecimiento = {
+  // Devuelve la sugerencia (0 o 1) para un comercio, o null.
+  sugerencia: (comercioId, multiplicador) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/sugerencia_reabastecimiento`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({
+        p_comercio_id: comercioId,
+        ...(multiplicador != null ? { p_multiplicador: multiplicador } : {}),
+      }),
+    })
+      .then(manejar)
+      .then((rows) => (rows && rows[0]) || null),
+};
