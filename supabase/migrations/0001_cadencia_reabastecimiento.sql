@@ -50,6 +50,7 @@ returns table (
   dias_desde_ultima integer,
   promedio_intervalo numeric,
   umbral_dias numeric,
+  multiplicador_usado numeric,
   ratio numeric
 )
 language sql
@@ -93,8 +94,10 @@ as $$
       limit 1
     ) as producto_relacion_id,
     e.dias_desde_ultima::integer,
-    round(e.promedio_intervalo, 1) as promedio_intervalo,
-    round(e.umbral_dias, 1) as umbral_dias,
+    round(e.promedio_intervalo, 2) as promedio_intervalo,
+    round(e.umbral_dias, 2) as umbral_dias,
+    -- Valor exacto que usó la RPC: PR-B lo registra sin ruido de redondeo.
+    p_multiplicador as multiplicador_usado,
     round(e.ratio, 3) as ratio
   from elegido e
   join productos_maestro pm on pm.id = e.producto_id;

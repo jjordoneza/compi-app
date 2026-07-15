@@ -51,7 +51,10 @@ Consumido por `fetch` (patrón de `supabase.js`, sin SDK):
   `promedio_intervalo`, `ultima_compra`. Toda la agregación en SQL.
 - **RPC** `sugerencia_reabastecimiento(p_comercio_id, p_multiplicador default 1.3)`:
   aplica pasos 2-6 y devuelve **0 o 1 fila**. El `1.3` es **parámetro**, no
-  constante hardcodeada — permite experimentar sin re-desplegar la app.
+  constante hardcodeada — permite experimentar sin re-desplegar la app. La RPC
+  devuelve además `multiplicador_usado` (el valor exacto que aplicó), para que la
+  instrumentación lo registre sin ruido de redondeo, y el cliente **no** lo pasa
+  (deja que la RPC lo gobierne).
 
 La Edge Function `ai-proxy` sigue siendo solo para IA; el cálculo es agregación
 pura y su lugar natural es SQL.
