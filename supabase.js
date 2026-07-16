@@ -125,6 +125,11 @@ export const AbastecimientosExt = {
   ...Abastecimientos,
   listarPorComercio: (comercioId) =>
     fetch(`${SUPABASE_URL}/rest/v1/abastecimientos?comercio_id=eq.${comercioId}&select=*&order=fecha.desc`, { headers: HEADERS }).then(manejar),
+  // Fecha real de un grupo de pedidos: vive en abastecimientos, no en pedidos.
+  listarPorIds: (ids) =>
+    ids.length === 0
+      ? Promise.resolve([])
+      : fetch(`${SUPABASE_URL}/rest/v1/abastecimientos?id=in.(${ids.join(',')})&select=*`, { headers: HEADERS }).then(manejar),
 };
 
 export const AbastecimientosGlobal = {
@@ -141,6 +146,9 @@ export const PedidosExt = {
     fetch(`${SUPABASE_URL}/rest/v1/pedidos?relacion_id=eq.${relacionId}&select=id&limit=1`, { headers: HEADERS })
       .then(manejar)
       .then((rows) => (rows || []).length > 0),
+  // Historial de pedidos con un proveedor específico (Detalle de relación).
+  listarPorRelacion: (relacionId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/pedidos?relacion_id=eq.${relacionId}&select=*&order=created_at.desc`, { headers: HEADERS }).then(manejar),
 };
 
 export const PedidoItemsExt = {

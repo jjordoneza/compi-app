@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { refrescarSiHaceFalta } from './auth';
+import { ComercioActualProvider } from './comercioActual';
 import SplashScreen from './screens/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
 import VerificacionScreen from './screens/VerificacionScreen';
@@ -22,6 +23,7 @@ import MiNegocioTenderoScreen from './screens/tendero/MiNegocioTenderoScreen';
 import PedidoEnviadoScreen from './screens/tendero/PedidoEnviadoScreen';
 import SeguimientoScreen from './screens/tendero/SeguimientoScreen';
 import ReabastecimientoRespuestaScreen from './screens/tendero/ReabastecimientoRespuestaScreen';
+import AgregarProveedorScreen from './screens/tendero/AgregarProveedorScreen';
 import PegarPedidoScreen from './screens/PegarPedidoScreen';
 import PedidosAdminScreen from './screens/PedidosAdminScreen';
 import SugerenciasCambioScreen from './screens/SugerenciasCambioScreen';
@@ -74,6 +76,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <ComercioActualProvider>
       <NavigationContainer>
         <Stack.Navigator
           screenOptions={{
@@ -113,6 +116,11 @@ export default function App() {
           />
           <Stack.Screen name="RespuestaReabastecimiento" component={ReabastecimientoRespuestaScreen} options={{ headerShown: false }} />
           <Stack.Screen
+            name="AgregarProveedor"
+            component={AgregarProveedorScreen}
+            options={({ navigation }) => ({ title: 'Agregar proveedor', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
             name="PegarPedido"
             component={PegarPedidoScreen}
             options={({ navigation }) => ({ title: 'Pegar pedido', headerLeft: () => <BotonVolver navigation={navigation} /> })}
@@ -149,6 +157,7 @@ export default function App() {
           />
         </Stack.Navigator>
       </NavigationContainer>
+      </ComercioActualProvider>
     </SafeAreaProvider>
   );
 }

@@ -331,7 +331,7 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
 
                   {hayOcultos && (
                     <TouchableOpacity onPress={() => abrirCatalogoCompleto(relacionId)}>
-                      <Text style={styles.verCatalogoLink}>+ Agregar otro producto de este proveedor</Text>
+                      <Text style={styles.verCatalogoLink}>Ver productos que te vende este proveedor</Text>
                     </TouchableOpacity>
                   )}
                 </View>

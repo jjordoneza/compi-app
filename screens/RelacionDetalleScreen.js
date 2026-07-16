@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Switch, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProductosMaestro, ProductosRelacionExt, RelacionesExt } from '../supabase';
+import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt } from '../supabase';
 import { COLORS, RADIUS, formatMoney } from '../theme';
 
 function limpiarNumero(texto) {
@@ -9,7 +9,27 @@ function limpiarNumero(texto) {
   return soloDigitos ? parseInt(soloDigitos, 10) : null;
 }
 
-export default function RelacionDetalleScreen({ route }) {
+// Memoizado: al marcar una casilla, solo esta fila debe re-renderizar, no las
+// ~cientos del catálogo compartido completo. Depende de que el padre le pase
+// `onToggle` con identidad estable (useCallback) — si no, el memo no sirve de nada.
+const FilaPicker = memo(function FilaPicker({ producto, activo, onToggle }) {
+  return (
+    <TouchableOpacity
+      style={[styles.itemPicker, activo && styles.itemPickerActivo]}
+      onPress={() => onToggle(producto.id)}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={styles.itemNombre}>{producto.nombre}</Text>
+        <Text style={styles.itemSub}>{producto.presentacion}</Text>
+      </View>
+      <View style={[styles.check, activo && styles.checkActivo]}>
+        {activo && <Text style={styles.checkTexto}>✓</Text>}
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+export default function RelacionDetalleScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { relacionId, proveedorNombre } = route.params;
   const [productosRelacion, setProductosRelacion] = useState([]);
@@ -32,6 +52,10 @@ export default function RelacionDetalleScreen({ route }) {
   const [diasPedido, setDiasPedido] = useState('');
   const [minimoPedido, setMinimoPedido] = useState('');
   const [mostrarDatos, setMostrarDatos] = useState(false);
+
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
+  const [historial, setHistorial] = useState(null); // null = todavía no cargado
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
   async function cargarInicial() {
     try {
@@ -56,7 +80,13 @@ export default function RelacionDetalleScreen({ route }) {
     }
   }
 
-  useEffect(() => { cargarInicial(); }, []);
+  useEffect(() => {
+    // "focus", no solo mount: precios/productos editados desde otra sesión (o
+    // vía Catálogo Maestro) deben verse al volver a esta pantalla sin remontar.
+    const unsubscribe = navigation.addListener('focus', cargarInicial);
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation]);
 
   async function guardarDatosContacto() {
     try {
@@ -75,11 +105,60 @@ export default function RelacionDetalleScreen({ route }) {
     }
   }
 
-  function toggleSeleccionado(productoId) {
+  // Carga perezosa (solo al abrir el acordeón la primera vez): el precio mostrado
+  // es el precio_pactado ACTUAL de cada producto, no una foto histórica — pedido_items
+  // no guarda un precio propio, así que si el precio cambió después de ese pedido,
+  // el total de un pedido viejo aquí puede no coincidir con lo que se pagó entonces.
+  // Es la misma limitación que ya tienen Inicio y Pedidos con el historial.
+  async function toggleHistorial() {
+    const abrir = !mostrarHistorial;
+    setMostrarHistorial(abrir);
+    if (abrir && historial === null) {
+      setCargandoHistorial(true);
+      try {
+        const pedidos = await PedidosExt.listarPorRelacion(relacionId);
+        const idsAbastecimientos = [...new Set(pedidos.map((p) => p.abastecimiento_id))];
+        const [abastecimientos, itemsPorPedido] = await Promise.all([
+          AbastecimientosExt.listarPorIds(idsAbastecimientos),
+          Promise.all(pedidos.map((p) => PedidoItemsExt.listarPorPedido(p.id))),
+        ]);
+
+        const armado = pedidos
+          .map((pedido, i) => {
+            const ab = abastecimientos.find((a) => a.id === pedido.abastecimiento_id);
+            let totalCompleto = true;
+            const items = itemsPorPedido[i].map((it) => {
+              const pr = productosRelacion.find((x) => x.id === it.producto_relacion_id);
+              const prod = pr ? productosMaestro.find((p) => p.id === pr.producto_id) : null;
+              if (!pr || pr.precio_pactado == null) totalCompleto = false;
+              return { nombre: prod?.nombre || 'Producto', cantidad: it.cantidad, precio: pr?.precio_pactado ?? null };
+            });
+            const total = items.reduce((sum, it) => sum + (it.precio != null ? it.precio * it.cantidad : 0), 0);
+            return {
+              pedidoId: pedido.id,
+              fecha: ab?.fecha || null,
+              estado: pedido.estado,
+              items,
+              total: totalCompleto && items.length > 0 ? total : null,
+            };
+          })
+          .sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
+
+        setHistorial(armado);
+      } catch (e) {
+        Alert.alert('Error cargando historial', e.message);
+        setMostrarHistorial(false);
+      } finally {
+        setCargandoHistorial(false);
+      }
+    }
+  }
+
+  const toggleSeleccionado = useCallback((productoId) => {
     setSeleccionados((prev) =>
       prev.includes(productoId) ? prev.filter((id) => id !== productoId) : [...prev, productoId]
     );
-  }
+  }, []);
 
   // Agrega todos los productos marcados de una vez, sin precio (se pone después,
   // individualmente, con "Poner precio" en la lista principal — no bloquea el alta).
@@ -106,13 +185,6 @@ export default function RelacionDetalleScreen({ route }) {
   function empezarEdicionPrecio(item) {
     setEditandoId(item.id);
     setPrecioEditado(item.precio_pactado != null ? String(item.precio_pactado) : '');
-  }
-
-  function confirmarGuardarPrecio(item) {
-    Alert.alert('Confirmar cambio', '¿Guardar el nuevo precio?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Guardar', onPress: () => guardarPrecio(item) },
-    ]);
   }
 
   async function guardarPrecio(item) {
@@ -153,11 +225,15 @@ export default function RelacionDetalleScreen({ route }) {
     }
   }
 
-  const idsYaAgregados = productosRelacion.map((pr) => pr.producto_id);
-  const disponibles = productosMaestro
-    .filter((p) => !idsYaAgregados.includes(p.id))
-    .filter((p) => p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  // No depende de `seleccionados` a propósito: marcar/desmarcar una casilla no
+  // debería recalcular el filtro+orden del catálogo completo en cada toque.
+  const disponibles = useMemo(() => {
+    const idsYaAgregados = productosRelacion.map((pr) => pr.producto_id);
+    return productosMaestro
+      .filter((p) => !idsYaAgregados.includes(p.id))
+      .filter((p) => p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, [productosRelacion, productosMaestro, busquedaProducto]);
 
   const conPrecio = productosRelacion.filter((p) => p.precio_pactado != null).length;
 
@@ -169,7 +245,7 @@ export default function RelacionDetalleScreen({ route }) {
       <ScrollView
         style={styles.container}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: mostrarFooterAgregar ? 24 + alturaFooterAgregar + insets.bottom : 40 }}
+        contentContainerStyle={{ paddingBottom: mostrarFooterAgregar ? 24 + alturaFooterAgregar + insets.bottom : 40 + insets.bottom }}
       >
         <Text style={styles.titulo}>{proveedorNombre}</Text>
         <Text style={styles.subtitulo}>Datos específicos de este proveedor para este negocio</Text>
@@ -241,7 +317,7 @@ export default function RelacionDetalleScreen({ route }) {
                     value={precioEditado}
                     onChangeText={setPrecioEditado}
                   />
-                  <TouchableOpacity style={styles.botonMini} disabled={guardando} onPress={() => confirmarGuardarPrecio(item)}>
+                  <TouchableOpacity style={styles.botonMini} disabled={guardando} onPress={() => guardarPrecio(item)}>
                     <Text style={styles.botonMiniTexto}>{guardando ? 'Guardando...' : 'Guardar'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setEditandoId(null)}>
@@ -266,6 +342,34 @@ export default function RelacionDetalleScreen({ route }) {
           </View>
         )}
 
+        <TouchableOpacity style={styles.acordeon} onPress={toggleHistorial}>
+          <Text style={styles.acordeonTexto}>{mostrarHistorial ? 'Ocultar' : 'Ver'} historial de pedidos con {proveedorNombre}</Text>
+        </TouchableOpacity>
+
+        {mostrarHistorial && (
+          <View>
+            {cargandoHistorial && <Text style={styles.vacio}>Cargando historial...</Text>}
+            {!cargandoHistorial && historial?.length === 0 && (
+              <Text style={styles.vacio}>Todavía no le has hecho ningún pedido a este proveedor</Text>
+            )}
+            {!cargandoHistorial && historial?.map((pedido) => (
+              <View key={pedido.pedidoId} style={styles.historialCard}>
+                <View style={styles.historialHeader}>
+                  <Text style={styles.historialFecha}>
+                    {pedido.fecha ? new Date(pedido.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Sin fecha'}
+                  </Text>
+                  <Text style={styles.historialTotal}>
+                    {pedido.total != null ? `$${formatMoney(pedido.total)}` : 'Precio incompleto'}
+                  </Text>
+                </View>
+                {pedido.items.map((it, i) => (
+                  <Text key={i} style={styles.historialItem}>• {it.nombre} x{it.cantidad}</Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        )}
+
         {!mostrarPicker ? (
           <TouchableOpacity style={styles.boton} onPress={() => setMostrarPicker(true)}>
             <Text style={styles.botonTexto}>+ Agregar producto</Text>
@@ -279,24 +383,14 @@ export default function RelacionDetalleScreen({ route }) {
               value={busquedaProducto}
               onChangeText={setBusquedaProducto}
             />
-            {disponibles.map((producto) => {
-              const activo = seleccionados.includes(producto.id);
-              return (
-                <TouchableOpacity
-                  key={producto.id}
-                  style={[styles.itemPicker, activo && styles.itemPickerActivo]}
-                  onPress={() => toggleSeleccionado(producto.id)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemNombre}>{producto.nombre}</Text>
-                    <Text style={styles.itemSub}>{producto.presentacion}</Text>
-                  </View>
-                  <View style={[styles.check, activo && styles.checkActivo]}>
-                    {activo && <Text style={styles.checkTexto}>✓</Text>}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            {disponibles.map((producto) => (
+              <FilaPicker
+                key={producto.id}
+                producto={producto}
+                activo={seleccionados.includes(producto.id)}
+                onToggle={toggleSeleccionado}
+              />
+            ))}
             {disponibles.length === 0 && <Text style={styles.vacio}>No hay productos que coincidan</Text>}
 
             <TouchableOpacity
@@ -365,6 +459,11 @@ const styles = StyleSheet.create({
   botonMiniCancelar: { paddingVertical: 10, paddingHorizontal: 10 },
   botonMiniCancelarTexto: { color: COLORS.textSecondary, fontSize: 12 },
   totalBox: { backgroundColor: COLORS.white, borderRadius: RADIUS.md, padding: 12, marginTop: 4, borderWidth: 0.5, borderColor: COLORS.borderLight },
+  historialCard: { backgroundColor: COLORS.white, borderRadius: RADIUS.md, padding: 12, marginTop: 8, borderWidth: 0.5, borderColor: COLORS.borderLight },
+  historialHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  historialFecha: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  historialTotal: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
+  historialItem: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   totalTexto: { fontSize: 14, fontWeight: '600', color: COLORS.text },
   vacio: { textAlign: 'center', color: COLORS.textSecondary, marginVertical: 14, fontSize: 13 },
 });
