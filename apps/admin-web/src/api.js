@@ -43,6 +43,49 @@ export async function actualizarProductoMaestro(id, payload) {
   if (error) throw error;
 }
 
+export async function listarAbastecimientosTodos() {
+  const { data, error } = await supabase
+    .from('abastecimientos')
+    .select('*, comercios(nombre)')
+    .order('fecha', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function listarRelacionesTodas() {
+  const { data, error } = await supabase.from('relaciones').select('*');
+  if (error) throw error;
+  return data;
+}
+
+export async function listarProductosRelacionTodos() {
+  const { data, error } = await supabase.from('productos_relacion').select('*');
+  if (error) throw error;
+  return data;
+}
+
+export async function listarPedidosPorAbastecimiento(abastecimientoId) {
+  const { data, error } = await supabase.from('pedidos').select('*').eq('abastecimiento_id', abastecimientoId);
+  if (error) throw error;
+  return data;
+}
+
+export async function listarPedidoItems(pedidoId) {
+  const { data, error } = await supabase.from('pedido_items').select('*').eq('pedido_id', pedidoId);
+  if (error) throw error;
+  return data;
+}
+
+export async function actualizarEstadoPedido(pedidoId, estado) {
+  const { error } = await supabase.from('pedidos').update({ estado }).eq('id', pedidoId);
+  if (error) throw error;
+}
+
+export async function actualizarEstadoAbastecimiento(abastecimientoId, estado) {
+  const { error } = await supabase.from('abastecimientos').update({ estado }).eq('id', abastecimientoId);
+  if (error) throw error;
+}
+
 export async function listarProveedoresPendientes() {
   const { data, error } = await supabase
     .from('proveedores_sugeridos')

@@ -6,6 +6,7 @@ import ProductosNuevos from './screens/ProductosNuevos';
 import CambiosPendientes from './screens/CambiosPendientes';
 import MaestroNegocios from './screens/MaestroNegocios';
 import MaestroProductos from './screens/MaestroProductos';
+import PedidosOperacion from './screens/PedidosOperacion';
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando, null = sin sesión
@@ -65,6 +66,9 @@ export default function App() {
         <button type="button" className={tab === 'maestroProductos' ? 'activo' : ''} onClick={() => setTab('maestroProductos')}>
           Maestro de productos
         </button>
+        <button type="button" className={tab === 'pedidos' ? 'activo' : ''} onClick={() => setTab('pedidos')}>
+          Pedidos
+        </button>
       </nav>
       <main>
         {tab === 'proveedores' && <ProveedoresNuevos />}
@@ -72,6 +76,7 @@ export default function App() {
         {tab === 'cambios' && <CambiosPendientes />}
         {tab === 'negocios' && <MaestroNegocios />}
         {tab === 'maestroProductos' && <MaestroProductos />}
+        {tab === 'pedidos' && <PedidosOperacion />}
       </main>
     </div>
   );

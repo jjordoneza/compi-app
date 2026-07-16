@@ -13,9 +13,6 @@ import ImportarContactosScreen from './screens/ImportarContactosScreen';
 import OnboardingProveedoresScreen from './screens/OnboardingProveedoresScreen';
 import SeleccionarNegocioScreen from './screens/SeleccionarNegocioScreen';
 import TabNavigator from './screens/tendero/TabNavigator';
-import CatalogoMaestroScreen from './screens/CatalogoMaestroScreen';
-import MiNegocioScreen from './screens/MiNegocioScreen';
-import RelacionesScreen from './screens/RelacionesScreen';
 import RelacionDetalleScreen from './screens/RelacionDetalleScreen';
 import NuevoAbastecimientoScreen from './screens/NuevoAbastecimientoScreen';
 import ConfirmarPedidoScreen from './screens/tendero/ConfirmarPedidoScreen';
@@ -25,7 +22,6 @@ import SeguimientoScreen from './screens/tendero/SeguimientoScreen';
 import ReabastecimientoRespuestaScreen from './screens/tendero/ReabastecimientoRespuestaScreen';
 import AgregarProveedorScreen from './screens/tendero/AgregarProveedorScreen';
 import PegarPedidoScreen from './screens/PegarPedidoScreen';
-import PedidosAdminScreen from './screens/PedidosAdminScreen';
 import { COLORS } from './theme';
 
 const Stack = createNativeStackNavigator();
@@ -125,29 +121,9 @@ export default function App() {
             options={({ navigation }) => ({ title: 'Pegar pedido', headerLeft: () => <BotonVolver navigation={navigation} /> })}
           />
           <Stack.Screen
-            name="CatalogoMaestro"
-            component={CatalogoMaestroScreen}
-            options={({ navigation }) => ({ title: 'Catálogo Maestro', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-          />
-          <Stack.Screen
-            name="MiNegocio"
-            component={MiNegocioScreen}
-            options={({ navigation }) => ({ title: 'Mi Negocio', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-          />
-          <Stack.Screen
-            name="Relaciones"
-            component={RelacionesScreen}
-            options={({ navigation }) => ({ title: 'Proveedores', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-          />
-          <Stack.Screen
             name="RelacionDetalle"
             component={RelacionDetalleScreen}
             options={({ navigation }) => ({ title: 'Productos', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-          />
-          <Stack.Screen
-            name="PedidosAdmin"
-            component={PedidosAdminScreen}
-            options={({ navigation }) => ({ title: 'Pedidos (todos)', headerLeft: () => <BotonVolver navigation={navigation} /> })}
           />
         </Stack.Navigator>
       </NavigationContainer>
