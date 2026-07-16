@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, FlatList, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MisComercios } from '../supabase';
 import { usuarioActual } from '../auth';
 import { COLORS, RADIUS } from '../theme';
 
 export default function SeleccionarNegocioScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [comercios, setComercios] = useState([]);
 
   useEffect(() => {
@@ -28,9 +30,10 @@ export default function SeleccionarNegocioScreen({ navigation }) {
       <Text style={styles.subtitulo}>Elige tu tienda para continuar</Text>
 
       <FlatList
+        style={{ flex: 1 }}
         data={[...comercios].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ marginTop: 20 }}
+        contentContainerStyle={{ marginTop: 20, paddingBottom: 20 }}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.item}
@@ -44,7 +47,7 @@ export default function SeleccionarNegocioScreen({ navigation }) {
       />
 
       <TouchableOpacity
-        style={styles.botonNuevo}
+        style={[styles.botonNuevo, { marginBottom: insets.bottom || 16 }]}
         onPress={() => navigation.navigate('RegistroNegocio', { telefono: usuarioActual()?.phone || '' })}
       >
         <Text style={styles.botonNuevoTexto}>+ Registrar otro negocio</Text>

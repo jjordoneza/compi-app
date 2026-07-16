@@ -102,8 +102,13 @@ export const ProveedoresRecomendados = {
 
 export const RelacionesExt = {
   ...Relaciones,
+  // Sin filtrar por "activo" a propósito: el historial (Inicio, Pedidos) necesita
+  // resolver nombre/precio de pedidos viejos aunque el proveedor ya esté desactivado.
   listarPorComercio: (comercioId) =>
     fetch(`${SUPABASE_URL}/rest/v1/relaciones?comercio_id=eq.${comercioId}&select=*`, { headers: HEADERS }).then(manejar),
+  // Para pantallas de gestión/armar pedido: solo proveedores vinculados hoy.
+  listarActivasPorComercio: (comercioId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/relaciones?comercio_id=eq.${comercioId}&activo=eq.true&select=*`, { headers: HEADERS }).then(manejar),
   obtenerPorId: (id) =>
     fetch(`${SUPABASE_URL}/rest/v1/relaciones?id=eq.${id}&select=*`, { headers: HEADERS })
       .then(manejar)
@@ -131,6 +136,11 @@ export const PedidosExt = {
   ...Pedidos,
   listarPorAbastecimiento: (abastecimientoId) =>
     fetch(`${SUPABASE_URL}/rest/v1/pedidos?abastecimiento_id=eq.${abastecimientoId}&select=*`, { headers: HEADERS }).then(manejar),
+  // "Eliminar proveedor": si ya tiene algún pedido, se desactiva en vez de borrar.
+  existeAlgunoPorRelacion: (relacionId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/pedidos?relacion_id=eq.${relacionId}&select=id&limit=1`, { headers: HEADERS })
+      .then(manejar)
+      .then((rows) => (rows || []).length > 0),
 };
 
 export const PedidoItemsExt = {

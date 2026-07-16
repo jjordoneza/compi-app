@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Switch, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProductosMaestro, ProductosRelacionExt, RelacionesExt } from '../supabase';
 import { COLORS, RADIUS, formatMoney } from '../theme';
 
@@ -9,6 +10,7 @@ function limpiarNumero(texto) {
 }
 
 export default function RelacionDetalleScreen({ route }) {
+  const insets = useSafeAreaInsets();
   const { relacionId, proveedorNombre } = route.params;
   const [productosRelacion, setProductosRelacion] = useState([]);
   const [productosMaestro, setProductosMaestro] = useState([]);
@@ -16,6 +18,7 @@ export default function RelacionDetalleScreen({ route }) {
   const [busquedaProducto, setBusquedaProducto] = useState('');
   const [seleccionados, setSeleccionados] = useState([]); // producto_id[] marcados en el picker
   const [agregandoVarios, setAgregandoVarios] = useState(false);
+  const [alturaFooterAgregar, setAlturaFooterAgregar] = useState(0);
 
   const [editandoId, setEditandoId] = useState(null);
   const [precioEditado, setPrecioEditado] = useState('');
@@ -158,9 +161,16 @@ export default function RelacionDetalleScreen({ route }) {
 
   const conPrecio = productosRelacion.filter((p) => p.precio_pactado != null).length;
 
+  const mostrarFooterAgregar = mostrarPicker && seleccionados.length > 0;
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
+      <View style={{ flex: 1 }}>
+      <ScrollView
+        style={styles.container}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: mostrarFooterAgregar ? 24 + alturaFooterAgregar + insets.bottom : 40 }}
+      >
         <Text style={styles.titulo}>{proveedorNombre}</Text>
         <Text style={styles.subtitulo}>Datos específicos de este proveedor para este negocio</Text>
 
@@ -289,17 +299,6 @@ export default function RelacionDetalleScreen({ route }) {
             })}
             {disponibles.length === 0 && <Text style={styles.vacio}>No hay productos que coincidan</Text>}
 
-            {seleccionados.length > 0 && (
-              <TouchableOpacity
-                style={[styles.boton, { marginTop: 12 }, agregandoVarios && { opacity: 0.5 }]}
-                disabled={agregandoVarios}
-                onPress={confirmarAgregarVarios}
-              >
-                <Text style={styles.botonTexto}>
-                  {agregandoVarios ? 'Agregando...' : `Agregar ${seleccionados.length} producto(s)`}
-                </Text>
-              </TouchableOpacity>
-            )}
             <TouchableOpacity
               style={styles.cancelarPicker}
               onPress={() => { setMostrarPicker(false); setSeleccionados([]); setBusquedaProducto(''); }}
@@ -309,6 +308,24 @@ export default function RelacionDetalleScreen({ route }) {
           </View>
         )}
       </ScrollView>
+
+      {mostrarFooterAgregar && (
+        <View
+          style={[styles.footerAgregar, { paddingBottom: 12 + insets.bottom }]}
+          onLayout={(e) => setAlturaFooterAgregar(e.nativeEvent.layout.height)}
+        >
+          <TouchableOpacity
+            style={[styles.boton, { marginTop: 0 }, agregandoVarios && { opacity: 0.5 }]}
+            disabled={agregandoVarios}
+            onPress={confirmarAgregarVarios}
+          >
+            <Text style={styles.botonTexto}>
+              {agregandoVarios ? 'Agregando...' : `Agregar ${seleccionados.length} producto(s)`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -335,6 +352,7 @@ const styles = StyleSheet.create({
   checkActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkTexto: { color: COLORS.white, fontSize: 13, fontWeight: '700' },
   cancelarPicker: { marginTop: 8, height: 40, alignItems: 'center', justifyContent: 'center' },
+  footerAgregar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.white, borderTopWidth: 0.5, borderTopColor: COLORS.borderLight, padding: 16 },
   cancelarPickerTexto: { color: COLORS.textSecondary, fontSize: 13 },
   itemNombre: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   itemSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
