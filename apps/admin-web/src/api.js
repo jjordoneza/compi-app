@@ -11,6 +11,38 @@ export async function actualizarComercio(id, cambios) {
   if (error) throw error;
 }
 
+export async function listarProveedoresMaestro() {
+  const { data, error } = await supabase.from('proveedores_maestro').select('*').order('nombre', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function crearProveedorMaestro(payload) {
+  const { error } = await supabase.from('proveedores_maestro').insert(payload);
+  if (error) throw error;
+}
+
+export async function actualizarProveedorMaestro(id, payload) {
+  const { error } = await supabase.from('proveedores_maestro').update(payload).eq('id', id);
+  if (error) throw error;
+}
+
+export async function listarProductosMaestro() {
+  const { data, error } = await supabase.from('productos_maestro').select('*').order('nombre', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function crearProductoMaestro(payload) {
+  const { error } = await supabase.from('productos_maestro').insert(payload);
+  if (error) throw error;
+}
+
+export async function actualizarProductoMaestro(id, payload) {
+  const { error } = await supabase.from('productos_maestro').update(payload).eq('id', id);
+  if (error) throw error;
+}
+
 export async function listarProveedoresPendientes() {
   const { data, error } = await supabase
     .from('proveedores_sugeridos')
