@@ -6,6 +6,7 @@ import ProveedoresNuevos from './screens/ProveedoresNuevos';
 import ProductosNuevos from './screens/ProductosNuevos';
 import CambiosPendientes from './screens/CambiosPendientes';
 import MaestroNegocios from './screens/MaestroNegocios';
+import MaestroProveedores from './screens/MaestroProveedores';
 import MaestroProductos from './screens/MaestroProductos';
 import PedidosOperacion from './screens/PedidosOperacion';
 
@@ -15,6 +16,7 @@ const NAV = [
   { id: 'productos', label: 'Productos nuevos', Componente: ProductosNuevos },
   { id: 'cambios', label: 'Cambios pendientes', Componente: CambiosPendientes },
   { id: 'negocios', label: 'Maestro negocios', Componente: MaestroNegocios },
+  { id: 'maestroProveedores', label: 'Maestro de proveedores', Componente: MaestroProveedores },
   { id: 'maestroProductos', label: 'Maestro de productos', Componente: MaestroProductos },
   { id: 'pedidos', label: 'Pedidos', Componente: PedidosOperacion },
 ];

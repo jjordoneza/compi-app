@@ -149,10 +149,18 @@ function TarjetaAbastecimiento({ ab, catalogo, onCambioEstado }) {
   );
 }
 
+const FILTROS = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'procesando', label: 'Procesando' },
+  { id: 'confirmado', label: 'Confirmado' },
+  { id: 'entregado', label: 'Entregado' },
+];
+
 export default function PedidosOperacion() {
   const [abastecimientos, setAbastecimientos] = useState(null);
   const [catalogo, setCatalogo] = useState(null);
   const [error, setError] = useState('');
+  const [filtro, setFiltro] = useState('todos');
 
   async function cargar() {
     try {
@@ -181,9 +189,19 @@ export default function PedidosOperacion() {
   if (error) return <p className="error">{error}</p>;
   if (abastecimientos === null || catalogo === null) return <p className="ayuda">Cargando...</p>;
 
+  const secciones = filtro === 'todos' ? SECCIONES : SECCIONES.filter((s) => s.estado === filtro);
+
   return (
     <div>
-      {SECCIONES.map((seccion) => {
+      <nav className="filtro">
+        {FILTROS.map((f) => (
+          <button key={f.id} type="button" className={filtro === f.id ? 'activo' : ''} onClick={() => setFiltro(f.id)}>
+            {f.label}
+          </button>
+        ))}
+      </nav>
+
+      {secciones.map((seccion) => {
         const filtrados = abastecimientos
           .filter((ab) => (ab.estado || 'procesando') === seccion.estado)
           .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
