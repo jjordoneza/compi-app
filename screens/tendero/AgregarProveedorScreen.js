@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProveedoresMaestro, RelacionesExt, ProveedoresRecomendados } from '../../supabase';
+import { ProveedoresMaestro, RelacionesExt, CoberturaProveedor } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
+
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const UMBRAL_COBERTURA = 0.3; // por debajo de esto no se destaca como "cubre tu zona" — sigue disponible igual
 
 export default function AgregarProveedorScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
@@ -10,7 +13,7 @@ export default function AgregarProveedorScreen({ route, navigation }) {
   const [cargando, setCargando] = useState(true);
   const [todosLosProveedores, setTodosLosProveedores] = useState([]);
   const [relacionesTodas, setRelacionesTodas] = useState([]); // incl. inactivas, para reactivar en vez de duplicar
-  const [proveedoresDelBarrio, setProveedoresDelBarrio] = useState([]);
+  const [cobertura, setCobertura] = useState({}); // proveedor_id -> { confianza, fuente, diaSemanaDominante }
   const [busqueda, setBusqueda] = useState('');
   const [seleccionados, setSeleccionados] = useState([]);
   const [guardando, setGuardando] = useState(false);
@@ -21,14 +24,26 @@ export default function AgregarProveedorScreen({ route, navigation }) {
   async function cargar() {
     setCargando(true);
     try {
-      const [todos, relaciones, idsBarrio] = await Promise.all([
+      const [todos, relaciones, coberturaFilas] = await Promise.all([
         ProveedoresMaestro.listar(),
         RelacionesExt.listarPorComercio(comercioId),
-        ProveedoresRecomendados.porBarrio(comercioId),
+        // Motor de confianza de cobertura (ver supabase/migrations 0009/0010):
+        // infiere dónde entrega cada proveedor a partir de relaciones activas
+        // + entregas reales, sin pedirle nada a nadie. Si un proveedor no
+        // aparece o falla la carga, sigue disponible igual — nunca bloquea.
+        CoberturaProveedor.confianza(comercioId).catch(() => []),
       ]);
       setTodosLosProveedores(todos);
       setRelacionesTodas(relaciones);
-      setProveedoresDelBarrio(idsBarrio);
+      const mapa = {};
+      (coberturaFilas || []).forEach((fila) => {
+        mapa[fila.proveedor_id] = {
+          confianza: Number(fila.confianza) || 0,
+          fuente: fila.fuente,
+          diaSemanaDominante: fila.dia_semana_dominante,
+        };
+      });
+      setCobertura(mapa);
     } catch (e) {
       Alert.alert('Error cargando', e.message);
     } finally {
@@ -69,14 +84,17 @@ export default function AgregarProveedorScreen({ route, navigation }) {
     .filter((p) => p.nombre.toLowerCase().includes(busqueda.toLowerCase()));
 
   const disponiblesDelBarrio = disponibles
-    .filter((p) => proveedoresDelBarrio.includes(p.id))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    .filter((p) => (cobertura[p.id]?.confianza || 0) >= UMBRAL_COBERTURA)
+    .sort((a, b) => (cobertura[b.id]?.confianza || 0) - (cobertura[a.id]?.confianza || 0));
   const disponiblesOtros = disponibles
-    .filter((p) => !proveedoresDelBarrio.includes(p.id))
+    .filter((p) => (cobertura[p.id]?.confianza || 0) < UMBRAL_COBERTURA)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
   function renderProveedor(item) {
     const activo = seleccionados.includes(item.id);
+    const info = cobertura[item.id];
+    const cubreZona = (info?.confianza || 0) >= UMBRAL_COBERTURA;
+    const diaTexto = info?.diaSemanaDominante != null ? DIAS[info.diaSemanaDominante] : null;
     return (
       <TouchableOpacity
         key={item.id}
@@ -86,6 +104,8 @@ export default function AgregarProveedorScreen({ route, navigation }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.itemNombre}>{item.nombre}</Text>
           <Text style={styles.itemSub}>{item.categoria || 'Sin categoría'}</Text>
+          {cubreZona && <Text style={styles.badgeCobertura}>📍 Cubre tu zona</Text>}
+          {diaTexto && <Text style={styles.badgeDia}>Suele entregar los {diaTexto} en tu zona</Text>}
         </View>
         <View style={[styles.check, activo && styles.checkActivo]}>
           {activo && <Text style={styles.checkTexto}>✓</Text>}
@@ -115,7 +135,7 @@ export default function AgregarProveedorScreen({ route, navigation }) {
 
         {disponiblesDelBarrio.length > 0 && (
           <>
-            <Text style={styles.subLabel}>Usados por tiendas de tu barrio</Text>
+            <Text style={styles.subLabel}>Con cobertura en tu zona</Text>
             {disponiblesDelBarrio.map(renderProveedor)}
           </>
         )}
@@ -156,6 +176,8 @@ const styles = StyleSheet.create({
   itemPickerActivo: { backgroundColor: COLORS.successBg, borderColor: COLORS.primary },
   itemNombre: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   itemSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  badgeCobertura: { fontSize: 11, color: COLORS.success, fontWeight: '600', marginTop: 4 },
+  badgeDia: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   check: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
   checkActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkTexto: { color: COLORS.white, fontSize: 12, fontWeight: '700' },

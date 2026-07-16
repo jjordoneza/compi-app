@@ -100,6 +100,17 @@ export const ProveedoresRecomendados = {
       .then((rows) => (rows || []).map((r) => r.proveedor_id)),
 };
 
+// Motor de confianza de cobertura de proveedores — inferido de relaciones
+// activas + entregas reales, ver supabase/migrations/0009 y 0010.
+export const CoberturaProveedor = {
+  confianza: (comercioId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/cobertura_confianza`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ p_comercio_id: comercioId }),
+    }).then(manejar),
+};
+
 export const RelacionesExt = {
   ...Relaciones,
   // Sin filtrar por "activo" a propósito: el historial (Inicio, Pedidos) necesita
