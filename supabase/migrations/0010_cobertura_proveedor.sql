@@ -149,7 +149,11 @@ returns table (
 language plpgsql
 stable
 security definer
-set search_path = public
+-- 'extensions', no solo 'public': en Supabase cube/earthdistance instalan
+-- ll_to_earth/earth_distance en el esquema `extensions`, no en `public`. Sin
+-- esto la función compila pero falla en tiempo de ejecución con
+-- "function ll_to_earth(...) does not exist" (42883).
+set search_path = public, extensions
 as $$
 declare
   v_lat double precision;
@@ -167,9 +171,17 @@ begin
     select
       v.proveedor_id,
       v.num_comercios,
-      v.radio_km,
+      -- v_cobertura_proveedor.radio_km también sale double precision de la
+      -- vista (percentile_cont sobre earth_distance). Si no se castea aquí,
+      -- se cuela en el case de confianza (resta/división contra radio_km) y
+      -- vuelve a romper el 42804 aunque distancia_km/decay ya estén en numeric.
+      v.radio_km::numeric as radio_km,
+      -- earth_distance/power devuelven double precision; se castea a numeric
+      -- aquí porque distancia_km es columna de salida (RETURNS TABLE numeric)
+      -- y Postgres no la castea solo — "structure of query does not match
+      -- function result type" (42804) si se deja como double precision.
       case when v_lat is null or v_lng is null then null
-        else earth_distance(ll_to_earth(v.centro_lat, v.centro_lng), ll_to_earth(v_lat, v_lng)) / 1000.0
+        else (earth_distance(ll_to_earth(v.centro_lat, v.centro_lng), ll_to_earth(v_lat, v_lng)) / 1000.0)::numeric
       end as distancia_km,
       -- Decaimiento exponencial por vida media: simple de razonar ("cada N
       -- días sin actividad, la confianza se reduce a la mitad"), nunca llega
@@ -178,24 +190,28 @@ begin
       power(
         0.5,
         extract(epoch from (now() - (v.ultima_actividad at time zone 'UTC'))) / 86400.0 / p_vida_media_dias
-      ) as decay
+      )::numeric as decay
     from v_cobertura_proveedor v
   ),
   propios_confianza as (
+    -- Alias p.* obligatorio: proveedor_id/num_comercios/distancia_km coinciden
+    -- con nombres de columnas de RETURNS TABLE (= variables PL/pgSQL visibles
+    -- en toda la función). Sin calificar, Postgres no puede distinguir la
+    -- variable de la columna y falla con 42702 "ambiguous".
     select
-      proveedor_id,
-      num_comercios,
-      distancia_km,
-      least(1.0, num_comercios / p_saturacion_comercios) * decay *
+      p.proveedor_id,
+      p.num_comercios,
+      p.distancia_km,
+      least(1.0, p.num_comercios / p_saturacion_comercios) * p.decay *
       case
-        when distancia_km is null then 0.5  -- comercio consultante sin GPS: castigo moderado, no cero
-        when distancia_km <= radio_km then 1.0
-        when distancia_km <= radio_km * p_factor_radio_max
-          then 1.0 - (distancia_km - radio_km) / greatest(radio_km, 0.1)
+        when p.distancia_km is null then 0.5  -- comercio consultante sin GPS: castigo moderado, no cero
+        when p.distancia_km <= p.radio_km then 1.0
+        when p.distancia_km <= p.radio_km * p_factor_radio_max
+          then 1.0 - (p.distancia_km - p.radio_km) / greatest(p.radio_km, 0.1)
         else 0.0
       end as confianza,
       'propio'::text as fuente
-    from propios
+    from propios p
   ),
   heredados as (
     select
@@ -214,12 +230,12 @@ begin
       ), 0) as confianza,
       case when v_barrio is null then 'sin_evidencia' else 'heredado' end as fuente
     from proveedores_maestro pm
-    where pm.id not in (select proveedor_id from propios_confianza)
+    where pm.id not in (select pc2.proveedor_id from propios_confianza pc2)
   ),
   combinado as (
-    select proveedor_id, confianza, distancia_km, num_comercios, fuente from propios_confianza
+    select pc.proveedor_id, pc.confianza, pc.distancia_km, pc.num_comercios, pc.fuente from propios_confianza pc
     union all
-    select proveedor_id, confianza, distancia_km, num_comercios, fuente from heredados
+    select h.proveedor_id, h.confianza, h.distancia_km, h.num_comercios, h.fuente from heredados h
   )
   select
     co.proveedor_id,
