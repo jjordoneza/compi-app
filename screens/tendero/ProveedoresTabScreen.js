@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
-import { ProveedoresMaestro, RelacionesExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresRecomendados } from '../../supabase';
+import { ProveedoresMaestro, RelacionesExt, PedidosExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresRecomendados } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
 
 const ETIQUETAS_SUG = { pendiente: 'Pendiente', aprobada: 'Aprobado', rechazada: 'Rechazado' };
 
 export default function ProveedoresTabScreen({ navigation, route }) {
   const { comercioId, comercioNombre } = route.params || {};
+  const [relacionesTodas, setRelacionesTodas] = useState([]); // incl. inactivas, para detectar re-vincular
   const [relacionesLista, setRelacionesLista] = useState([]);
   const [todosLosProveedores, setTodosLosProveedores] = useState([]);
   const [sugerencias, setSugerencias] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  const [eliminandoId, setEliminandoId] = useState(null);
 
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
   const [busquedaAgregar, setBusquedaAgregar] = useState('');
@@ -29,13 +31,15 @@ export default function ProveedoresTabScreen({ navigation, route }) {
   async function cargar() {
     if (!comercioId) return;
     try {
-      const relaciones = await RelacionesExt.listarPorComercio(comercioId);
+      const relaciones = await RelacionesExt.listarPorComercio(comercioId); // incl. inactivas
       const todos = await ProveedoresMaestro.listar();
       const sugs = await SugerenciasCambioExt.listarPorComercio(comercioId);
       setTodosLosProveedores(todos);
       setSugerencias(sugs);
+      setRelacionesTodas(relaciones);
       setRelacionesLista(
         relaciones
+          .filter((r) => r.activo)
           .map((r) => ({ relacion: r, proveedor: todos.find((p) => p.id === r.proveedor_id) }))
           .filter((x) => x.proveedor)
       );
@@ -60,7 +64,15 @@ export default function ProveedoresTabScreen({ navigation, route }) {
     setGuardandoSeleccion(true);
     try {
       for (const proveedorId of seleccionadosParaAgregar) {
-        await RelacionesExt.crear({ comercio_id: comercioId, proveedor_id: proveedorId });
+        // Si ya lo habías eliminado antes (y quedó desactivado, no borrado), lo
+        // reactivamos en vez de crear una relación duplicada — conserva su
+        // historial y precios viejos.
+        const inactiva = relacionesTodas.find((r) => r.proveedor_id === proveedorId && !r.activo);
+        if (inactiva) {
+          await RelacionesExt.actualizar(inactiva.id, { activo: true });
+        } else {
+          await RelacionesExt.crear({ comercio_id: comercioId, proveedor_id: proveedorId });
+        }
       }
       setMostrarAgregar(false);
       setSeleccionadosParaAgregar([]);
@@ -70,6 +82,71 @@ export default function ProveedoresTabScreen({ navigation, route }) {
       Alert.alert('Error vinculando', e.message);
     } finally {
       setGuardandoSeleccion(false);
+    }
+  }
+
+  async function iniciarEliminarProveedor(relacion, proveedor) {
+    if (eliminandoId) return;
+    setEliminandoId(relacion.id);
+    let tieneHistorial = false;
+    try {
+      tieneHistorial = await PedidosExt.existeAlgunoPorRelacion(relacion.id);
+    } catch (e) {
+      setEliminandoId(null);
+      Alert.alert('Error', e.message);
+      return;
+    }
+    setEliminandoId(null);
+
+    if (tieneHistorial) {
+      Alert.alert(
+        'Quitar proveedor',
+        `${proveedor.nombre} ya tiene pedidos en tu historial, así que no se puede borrar del todo. Lo vamos a quitar de tu lista — tu historial queda intacto y puedes volver a agregarlo cuando quieras.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Quitar', style: 'destructive', onPress: () => desactivarProveedor(relacion.id) },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Eliminar proveedor',
+        `¿Eliminar a ${proveedor.nombre}? Todavía no tiene pedidos, así que se elimina por completo junto con su catálogo.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Eliminar', style: 'destructive', onPress: () => eliminarProveedorCompleto(relacion.id) },
+        ]
+      );
+    }
+  }
+
+  async function desactivarProveedor(relacionId) {
+    setEliminandoId(relacionId);
+    try {
+      await RelacionesExt.actualizar(relacionId, { activo: false });
+      await cargar();
+    } catch (e) {
+      Alert.alert('Error quitando', e.message);
+    } finally {
+      setEliminandoId(null);
+    }
+  }
+
+  async function eliminarProveedorCompleto(relacionId) {
+    setEliminandoId(relacionId);
+    try {
+      await RelacionesExt.eliminar(relacionId);
+      await cargar();
+    } catch (e) {
+      // Red de seguridad: si el DELETE choca con historial que no detectamos
+      // antes (ej. una FK de pedidos), cae a desactivar en vez de fallar en seco.
+      try {
+        await RelacionesExt.actualizar(relacionId, { activo: false });
+        await cargar();
+      } catch (e2) {
+        Alert.alert('Error eliminando', e.message);
+      }
+    } finally {
+      setEliminandoId(null);
     }
   }
 
@@ -237,6 +314,16 @@ export default function ProveedoresTabScreen({ navigation, route }) {
                 )}
               </>
             )}
+
+            <TouchableOpacity
+              style={styles.eliminarBoton}
+              disabled={eliminandoId === relacion.id}
+              onPress={() => iniciarEliminarProveedor(relacion, proveedor)}
+            >
+              <Text style={styles.eliminarProveedorTexto}>
+                {eliminandoId === relacion.id ? 'Un momento...' : 'Eliminar proveedor'}
+              </Text>
+            </TouchableOpacity>
           </View>
         );
       })}
@@ -296,6 +383,8 @@ const styles = StyleSheet.create({
   tocable: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
   avisoTexto: { fontSize: 10, color: COLORS.textSecondary, marginTop: 8 },
   linkTexto: { fontSize: 11, color: COLORS.primary, fontWeight: '600', textDecorationLine: 'underline' },
+  eliminarBoton: { marginTop: 12, alignSelf: 'flex-start' },
+  eliminarProveedorTexto: { fontSize: 12, color: COLORS.error, fontWeight: '600' },
   sugerenciaFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, backgroundColor: COLORS.bg, borderRadius: RADIUS.sm, padding: 8 },
   sugerenciaTexto: { fontSize: 11, color: COLORS.text, flex: 1, marginRight: 8 },
   pillEstado: { paddingVertical: 3, paddingHorizontal: 9, borderRadius: RADIUS.full },

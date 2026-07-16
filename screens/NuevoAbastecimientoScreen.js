@@ -39,7 +39,7 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
     setCargando(true);
     try {
       const [relaciones, todosProveedores, todosProductos] = await Promise.all([
-        RelacionesExt.listarPorComercio(comercioId),
+        RelacionesExt.listarActivasPorComercio(comercioId),
         ProveedoresMaestro.listar(),
         ProductosMaestro.listar(),
       ]);
