@@ -3,9 +3,11 @@ import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ProveedoresMaestro, ProductosMaestro, RelacionesExt, ProductosRelacionExt,
-  PedidoItemsFull,
+  PedidoItemsFull, AbastecimientosExt, PedidosExt,
 } from '../supabase';
 import { COLORS, RADIUS, formatMoney } from '../theme';
+
+const LIMITE_ABASTECIMIENTOS_USO = 15;
 
 function limpiarNumero(texto) {
   const soloDigitos = texto.replace(/[^0-9]/g, '');
@@ -19,6 +21,13 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
   const [productosPorRelacion, setProductosPorRelacion] = useState({});
   const [cantidades, setCantidades] = useState({});
   const [cargando, setCargando] = useState(true);
+  const [usoConteo, setUsoConteo] = useState({}); // relacionId -> num pedidos históricos
+
+  const [busquedaProveedor, setBusquedaProveedor] = useState('');
+  const [expandidoRelacionId, setExpandidoRelacionId] = useState(null);
+  const [catalogoCompletoAbierto, setCatalogoCompletoAbierto] = useState([]); // relacionId[]
+  const [soloRepetidos, setSoloRepetidos] = useState(false);
+  const [alturaFooter, setAlturaFooter] = useState(160);
 
   const [precioEditandoId, setPrecioEditandoId] = useState(null);
   const [precioEditandoValor, setPrecioEditandoValor] = useState('');
@@ -58,25 +67,58 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
       setProveedores(listaProveedores);
       setProductosPorRelacion(mapa);
 
+      // No bloquea el resto de la pantalla si falla: solo afecta el orden sugerido.
+      cargarUso(listaProveedores).catch(() => {});
+
       if (repetirDeId) {
         const grupos = await PedidoItemsFull.listarPorAbastecimientoCompleto(repetirDeId);
         const cantidadesPrevias = {};
+        const relacionesConItems = [];
         for (const grupo of grupos) {
+          if (grupo.items.length > 0) relacionesConItems.push(grupo.relacionId);
           for (const item of grupo.items) {
             cantidadesPrevias[item.producto_relacion_id] = item.cantidad;
           }
         }
         setCantidades(cantidadesPrevias);
+        setSoloRepetidos(true);
+        // Precarga: abre de una vez las tarjetas de los proveedores que sí tenían pedido.
+        setCatalogoCompletoAbierto([]);
+        if (relacionesConItems.length > 0) setExpandidoRelacionId(relacionesConItems[0]);
       } else if (precargarCantidades) {
         setCantidades(precargarCantidades);
+        const relacionConPrecarga = listaProveedores.find(({ relacionId }) =>
+          (mapa[relacionId] || []).some((pr) => precargarCantidades[pr.id] != null)
+        );
+        if (relacionConPrecarga) setExpandidoRelacionId(relacionConPrecarga.relacionId);
       } else if (sugerirProductoRelacionId) {
         setCantidades({ [sugerirProductoRelacionId]: 1 });
+        const relacionSugerida = listaProveedores.find(({ relacionId }) =>
+          (mapa[relacionId] || []).some((pr) => pr.id === sugerirProductoRelacionId)
+        );
+        if (relacionSugerida) setExpandidoRelacionId(relacionSugerida.relacionId);
       }
     } catch (e) {
       Alert.alert('Error cargando', e.message);
     } finally {
       setCargando(false);
     }
+  }
+
+  // "Más usado primero": cuenta pedidos históricos por relación, sobre los últimos
+  // abastecimientos del comercio. Es solo para ordenar la lista, no una estadística
+  // mostrada — un fallo aquí no debe bloquear el resto de la pantalla.
+  async function cargarUso(listaProveedores) {
+    const abastecimientos = await AbastecimientosExt.listarPorComercio(comercioId);
+    const recientes = abastecimientos.slice(0, LIMITE_ABASTECIMIENTOS_USO);
+    const pedidosPorAbastecimiento = await Promise.all(
+      recientes.map((ab) => PedidosExt.listarPorAbastecimiento(ab.id))
+    );
+    const conteo = {};
+    pedidosPorAbastecimiento.flat().forEach((p) => {
+      conteo[p.relacion_id] = (conteo[p.relacion_id] || 0) + 1;
+    });
+    setUsoConteo(conteo);
   }
 
   function cambiarCantidad(productoRelacionId, delta) {
@@ -112,6 +154,14 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
     }
   }
 
+  function toggleExpandido(relacionId) {
+    setExpandidoRelacionId((prev) => (prev === relacionId ? null : relacionId));
+  }
+
+  function abrirCatalogoCompleto(relacionId) {
+    setCatalogoCompletoAbierto((prev) => (prev.includes(relacionId) ? prev : [...prev, relacionId]));
+  }
+
   const todosLosItems = [];
   proveedores.forEach(({ relacionId, proveedor }) => {
     (productosPorRelacion[relacionId] || []).forEach((pr) => {
@@ -126,6 +176,16 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
     itemsSinPrecioSeleccionados.length === 0 && itemsSeleccionados.length > 0
       ? itemsSeleccionados.reduce((sum, it) => sum + it.precio_pactado * cantidades[it.id], 0)
       : null;
+
+  const proveedoresFiltrados = proveedores
+    .filter(({ proveedor }) => proveedor.nombre.toLowerCase().includes(busquedaProveedor.toLowerCase()))
+    .map((p) => ({ ...p, seleccionadosCount: (productosPorRelacion[p.relacionId] || []).filter((pr) => (cantidades[pr.id] || 0) > 0).length }))
+    .sort((a, b) => {
+      const usoA = usoConteo[a.relacionId] || 0;
+      const usoB = usoConteo[b.relacionId] || 0;
+      if (usoA !== usoB) return usoB - usoA;
+      return a.proveedor.nombre.localeCompare(b.proveedor.nombre, 'es');
+    });
 
   function irAConfirmar() {
     if (totalProductos === 0) return;
@@ -159,14 +219,14 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: alturaFooter + insets.bottom }}>
         <Text style={styles.titulo}>
           {repetirDeId ? 'Repetir abastecimiento' : precargarCantidades ? 'Pedido desde WhatsApp' : sugerirProductoRelacionId ? 'Reponer sugerido' : 'Nuevo abastecimiento'}
         </Text>
         <Text style={styles.subtitulo}>{comercioNombre}</Text>
         {repetirDeId && (
           <View style={styles.avisoRepetir}>
-            <Text style={styles.avisoRepetirTexto}>Precargamos las cantidades de tu último pedido. Ajusta lo que necesites.</Text>
+            <Text style={styles.avisoRepetirTexto}>Precargamos lo que pediste la vez anterior. Ajusta cantidades o agrega más si quieres.</Text>
           </View>
         )}
         {precargarCantidades && (
@@ -184,66 +244,107 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
           <Text style={styles.vacio}>Ninguno de tus proveedores tiene productos cargados todavía.</Text>
         )}
 
-        {proveedores.map(({ relacionId, proveedor }) => (
-          <View key={relacionId} style={{ marginBottom: 18 }}>
-            <Text style={styles.proveedorNombre}>{proveedor.nombre}</Text>
-            {productosPorRelacion[relacionId].map((pr) => {
-              const cant = cantidades[pr.id] || 0;
-              const sinPrecio = pr.precio_pactado == null;
-              const editandoEste = precioEditandoId === pr.id;
+        {proveedores.length > 0 && (
+          <TextInput
+            style={styles.buscador}
+            placeholder="Buscar proveedor..."
+            value={busquedaProveedor}
+            onChangeText={setBusquedaProveedor}
+          />
+        )}
 
-              return (
-                <View key={pr.id} style={styles.item}>
-                  <View style={styles.filaItem}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.itemNombre}>{pr.producto?.nombre || 'Producto'}</Text>
-                      <Text style={styles.itemSub}>
-                        {pr.producto?.presentacion}
-                        {!sinPrecio ? ` · $${formatMoney(pr.precio_pactado)}` : ''}
-                      </Text>
-                    </View>
-                    <View style={styles.stepper}>
-                      <TouchableOpacity style={styles.stepperBoton} onPress={() => cambiarCantidad(pr.id, -1)}>
-                        <Text style={styles.stepperTexto}>−</Text>
-                      </TouchableOpacity>
-                      <Text style={styles.stepperNumero}>{cant}</Text>
-                      <TouchableOpacity style={[styles.stepperBoton, styles.stepperBotonMas]} onPress={() => cambiarCantidad(pr.id, 1)}>
-                        <Text style={[styles.stepperTexto, { color: COLORS.white }]}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+        {proveedoresFiltrados.map(({ relacionId, proveedor, seleccionadosCount }) => {
+          const expandido = expandidoRelacionId === relacionId;
+          const catalogoCompleto = !soloRepetidos || catalogoCompletoAbierto.includes(relacionId);
+          const itemsProveedor = productosPorRelacion[relacionId] || [];
+          const itemsAMostrar = catalogoCompleto
+            ? itemsProveedor
+            : itemsProveedor.filter((pr) => (cantidades[pr.id] || 0) > 0);
+          const hayOcultos = !catalogoCompleto && itemsAMostrar.length < itemsProveedor.length;
 
-                  {sinPrecio && !editandoEste && (
-                    <TouchableOpacity onPress={() => empezarEditarPrecio(pr)}>
-                      <Text style={styles.avisoTocable}>Sin precio configurado · tócalo para ponerlo</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {editandoEste && (
-                    <View style={styles.filaEdicion}>
-                      <TextInput
-                        style={styles.inputPrecio}
-                        keyboardType="numeric"
-                        placeholder="Ej. 13500"
-                        value={precioEditandoValor}
-                        onChangeText={setPrecioEditandoValor}
-                      />
-                      <TouchableOpacity style={styles.botonMini} disabled={guardandoPrecio} onPress={() => guardarPrecioInline(pr, relacionId)}>
-                        <Text style={styles.botonMiniTexto}>{guardandoPrecio ? 'Guardando...' : 'Guardar'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setPrecioEditandoId(null)}>
-                        <Text style={styles.botonMiniCancelarTexto}>Cancelar</Text>
-                      </TouchableOpacity>
-                    </View>
+          return (
+            <View key={relacionId} style={styles.proveedorCard}>
+              <TouchableOpacity style={styles.proveedorCardHeader} onPress={() => toggleExpandido(relacionId)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.proveedorNombre}>{proveedor.nombre}</Text>
+                  {seleccionadosCount > 0 && (
+                    <Text style={styles.proveedorBadge}>{seleccionadosCount} producto(s) seleccionados</Text>
                   )}
                 </View>
-              );
-            })}
-          </View>
-        ))}
+                <Text style={styles.chevron}>{expandido ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+
+              {expandido && (
+                <View style={styles.proveedorCardBody}>
+                  {itemsAMostrar.map((pr) => {
+                    const cant = cantidades[pr.id] || 0;
+                    const sinPrecio = pr.precio_pactado == null;
+                    const editandoEste = precioEditandoId === pr.id;
+
+                    return (
+                      <View key={pr.id} style={styles.item}>
+                        <View style={styles.filaItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.itemNombre}>{pr.producto?.nombre || 'Producto'}</Text>
+                            <Text style={styles.itemSub}>
+                              {pr.producto?.presentacion}
+                              {!sinPrecio ? ` · $${formatMoney(pr.precio_pactado)}` : ''}
+                            </Text>
+                          </View>
+                          <View style={styles.stepper}>
+                            <TouchableOpacity style={styles.stepperBoton} onPress={() => cambiarCantidad(pr.id, -1)}>
+                              <Text style={styles.stepperTexto}>−</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.stepperNumero}>{cant}</Text>
+                            <TouchableOpacity style={[styles.stepperBoton, styles.stepperBotonMas]} onPress={() => cambiarCantidad(pr.id, 1)}>
+                              <Text style={[styles.stepperTexto, { color: COLORS.white }]}>+</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        {sinPrecio && !editandoEste && (
+                          <TouchableOpacity onPress={() => empezarEditarPrecio(pr)}>
+                            <Text style={styles.avisoTocable}>Sin precio configurado · tócalo para ponerlo</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {editandoEste && (
+                          <View style={styles.filaEdicion}>
+                            <TextInput
+                              style={styles.inputPrecio}
+                              keyboardType="numeric"
+                              placeholder="Ej. 13500"
+                              value={precioEditandoValor}
+                              onChangeText={setPrecioEditandoValor}
+                            />
+                            <TouchableOpacity style={styles.botonMini} disabled={guardandoPrecio} onPress={() => guardarPrecioInline(pr, relacionId)}>
+                              <Text style={styles.botonMiniTexto}>{guardandoPrecio ? 'Guardando...' : 'Guardar'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setPrecioEditandoId(null)}>
+                              <Text style={styles.botonMiniCancelarTexto}>Cancelar</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+
+                  {hayOcultos && (
+                    <TouchableOpacity onPress={() => abrirCatalogoCompleto(relacionId)}>
+                      <Text style={styles.verCatalogoLink}>+ Agregar otro producto de este proveedor</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        })}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
+      <View
+        style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}
+        onLayout={(e) => setAlturaFooter(e.nativeEvent.layout.height)}
+      >
         <View style={styles.footerFila}>
           <Text style={styles.footerTexto}>{totalProductos} producto(s) seleccionados</Text>
           {totalEstimado != null ? (
@@ -278,8 +379,15 @@ const styles = StyleSheet.create({
   avisoRepetir: { backgroundColor: COLORS.successBg, borderRadius: RADIUS.sm, padding: 10, marginBottom: 14 },
   avisoRepetirTexto: { fontSize: 12, color: COLORS.text },
   vacio: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 20 },
-  proveedorNombre: { fontSize: 14, fontWeight: '700', color: COLORS.primary, marginBottom: 8 },
-  item: { backgroundColor: COLORS.white, padding: 12, borderRadius: RADIUS.md, marginBottom: 8, borderWidth: 0.5, borderColor: COLORS.borderLight },
+  buscador: { height: 46, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.white, marginBottom: 14 },
+  proveedorCard: { backgroundColor: COLORS.white, borderRadius: RADIUS.md, marginBottom: 8, borderWidth: 0.5, borderColor: COLORS.borderLight, overflow: 'hidden' },
+  proveedorCardHeader: { flexDirection: 'row', alignItems: 'center', padding: 14 },
+  proveedorNombre: { fontSize: 15, fontWeight: '700', color: COLORS.primary },
+  proveedorBadge: { fontSize: 11, color: COLORS.success, marginTop: 3, fontWeight: '600' },
+  chevron: { fontSize: 12, color: COLORS.textSecondary, marginLeft: 8 },
+  proveedorCardBody: { paddingHorizontal: 12, paddingBottom: 12 },
+  verCatalogoLink: { fontSize: 12, color: COLORS.primary, fontWeight: '600', textAlign: 'center', marginTop: 4, marginBottom: 4 },
+  item: { backgroundColor: COLORS.bg, padding: 12, borderRadius: RADIUS.md, marginBottom: 8 },
   filaItem: { flexDirection: 'row', alignItems: 'center' },
   itemNombre: { fontSize: 14, fontWeight: '600', color: COLORS.text },
   itemSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
@@ -290,7 +398,7 @@ const styles = StyleSheet.create({
   stepperNumero: { fontSize: 16, fontWeight: '600', color: COLORS.text, minWidth: 20, textAlign: 'center' },
   avisoTocable: { fontSize: 11, color: COLORS.warning, marginTop: 8, fontWeight: '600' },
   filaEdicion: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  inputPrecio: { flex: 1, height: 40, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.sm, paddingHorizontal: 12, fontSize: 13, color: COLORS.text, backgroundColor: COLORS.bg },
+  inputPrecio: { flex: 1, height: 40, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.sm, paddingHorizontal: 12, fontSize: 13, color: COLORS.text, backgroundColor: COLORS.white },
   botonMini: { backgroundColor: COLORS.primary, paddingVertical: 9, paddingHorizontal: 12, borderRadius: RADIUS.sm },
   botonMiniTexto: { color: COLORS.white, fontSize: 12, fontWeight: '600' },
   botonMiniCancelar: { paddingVertical: 9, paddingHorizontal: 8 },
