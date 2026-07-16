@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { ComerciosExt } from '../../supabase';
+import { useComercioActual } from '../../comercioActual';
 import { COLORS, RADIUS } from '../../theme';
 
 // Edición del propio negocio del tendero — distinta de screens/MiNegocioScreen.js
@@ -8,6 +9,7 @@ import { COLORS, RADIUS } from '../../theme';
 // Esta pantalla solo lee y edita el comercioId del tendero logueado.
 export default function MiNegocioTenderoScreen({ route, navigation }) {
   const { comercioId } = route.params;
+  const { setComercioActual } = useComercioActual();
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [nombre, setNombre] = useState('');
@@ -45,6 +47,9 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
         direccion: direccion.trim() || null,
         detalles: detalles.trim() || null,
       });
+      // Actualiza el Context ya mismo — así Inicio y Perfil muestran el nombre
+      // nuevo sin necesidad de que esas tabs vuelvan a tener foco.
+      setComercioActual({ comercioNombre: nombre.trim() });
       navigation.navigate('Home', { screen: 'PerfilTab', params: { comercioId, comercioNombre: nombre.trim() } });
     } catch (e) {
       Alert.alert('Error guardando', e.message);

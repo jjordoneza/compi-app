@@ -5,6 +5,7 @@ import {
   PedidosExt, PedidoItemsExt, ProductosRelacionExt, ProductosMaestro,
   Reabastecimiento, ReabastecimientoSugerencias, ReabastecimientoSugerenciasExt,
 } from '../../supabase';
+import { useComercioActual } from '../../comercioActual';
 import { COLORS, RADIUS, formatMoney } from '../../theme';
 
 const LIMITE_ABASTECIMIENTOS_STATS = 8;
@@ -71,7 +72,9 @@ async function registrarSugerencia(comercioId, sug) {
 }
 
 export default function InicioScreen({ navigation, route }) {
-  const { comercioId, comercioNombre } = route.params || {};
+  const { comercioId } = route.params || {};
+  const { comercioActual } = useComercioActual();
+  const comercioNombre = comercioActual?.comercioNombre ?? route.params?.comercioNombre;
   const [proveedores, setProveedores] = useState([]);
   const [ultimoAbastecimiento, setUltimoAbastecimiento] = useState(null);
   const [estadisticas, setEstadisticas] = useState(null);

@@ -1,9 +1,12 @@
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { cerrarSesion } from '../../auth';
+import { useComercioActual } from '../../comercioActual';
 import { COLORS, RADIUS } from '../../theme';
 
 export default function PerfilScreen({ navigation, route }) {
-  const { comercioId, comercioNombre } = route.params || {};
+  const { comercioId } = route.params || {};
+  const { comercioActual } = useComercioActual();
+  const comercioNombre = comercioActual?.comercioNombre ?? route.params?.comercioNombre;
 
   async function salir() {
     await cerrarSesion();

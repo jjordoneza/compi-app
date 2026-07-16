@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { refrescarSiHaceFalta } from './auth';
+import { ComercioActualProvider } from './comercioActual';
 import SplashScreen from './screens/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
 import VerificacionScreen from './screens/VerificacionScreen';
@@ -75,6 +76,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <ComercioActualProvider>
       <NavigationContainer>
         <Stack.Navigator
           screenOptions={{
@@ -155,6 +157,7 @@ export default function App() {
           />
         </Stack.Navigator>
       </NavigationContainer>
+      </ComercioActualProvider>
     </SafeAreaProvider>
   );
 }

@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 import InicioScreen from './InicioScreen';
 import PedidosTabScreen from './PedidosTabScreen';
 import ProveedoresTabScreen from './ProveedoresTabScreen';
 import PerfilScreen from './PerfilScreen';
+import { useComercioActual } from '../../comercioActual';
 import { COLORS } from '../../theme';
 
 const Tab = createBottomTabNavigator();
@@ -14,6 +16,14 @@ function Icono({ emoji, color }) {
 
 export default function TabNavigator({ route }) {
   const { comercioId, comercioNombre } = route.params || {};
+  const { setComercioActual } = useComercioActual();
+
+  // Sincroniza el Context al entrar/reentrar a Home (incluido "Cambiar negocio",
+  // que remonta todo con un comercioId distinto). De aquí en adelante, las
+  // pantallas leen el nombre del Context, no de este initialParams congelado.
+  useEffect(() => {
+    setComercioActual({ comercioId, comercioNombre });
+  }, [comercioId, comercioNombre, setComercioActual]);
 
   return (
     <Tab.Navigator
