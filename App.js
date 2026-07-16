@@ -26,7 +26,6 @@ import ReabastecimientoRespuestaScreen from './screens/tendero/ReabastecimientoR
 import AgregarProveedorScreen from './screens/tendero/AgregarProveedorScreen';
 import PegarPedidoScreen from './screens/PegarPedidoScreen';
 import PedidosAdminScreen from './screens/PedidosAdminScreen';
-import SugerenciasCambioScreen from './screens/SugerenciasCambioScreen';
 import { COLORS } from './theme';
 
 const Stack = createNativeStackNavigator();
@@ -149,11 +148,6 @@ export default function App() {
             name="PedidosAdmin"
             component={PedidosAdminScreen}
             options={({ navigation }) => ({ title: 'Pedidos (todos)', headerLeft: () => <BotonVolver navigation={navigation} /> })}
-          />
-          <Stack.Screen
-            name="SugerenciasCambio"
-            component={SugerenciasCambioScreen}
-            options={({ navigation }) => ({ title: 'Sugerencias', headerLeft: () => <BotonVolver navigation={navigation} /> })}
           />
         </Stack.Navigator>
       </NavigationContainer>

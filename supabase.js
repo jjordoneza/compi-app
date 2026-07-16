@@ -43,6 +43,9 @@ export const Abastecimientos = tabla('abastecimientos');
 export const Pedidos = tabla('pedidos');
 export const PedidoItems = tabla('pedido_items');
 export const SugerenciasCambio = tabla('sugerencias_cambio_proveedor');
+// Cambios de contacto de negocio (teléfono, nombre de quien atiende) — igual
+// que arriba, pasan por curaduría admin. Ver supabase/migrations/0013.
+export const SugerenciasCambioComercio = tabla('sugerencias_cambio_comercio');
 export const ReabastecimientoAjustes = tabla('reabastecimiento_ajustes');
 
 export const ComerciosExt = {
@@ -186,6 +189,15 @@ export const SugerenciasCambioExt = {
     fetch(`${SUPABASE_URL}/rest/v1/sugerencias_cambio_proveedor?estado=eq.pendiente&select=*`, { headers: HEADERS }).then(manejar),
   listarPorComercio: (comercioId) =>
     fetch(`${SUPABASE_URL}/rest/v1/sugerencias_cambio_proveedor?comercio_id=eq.${comercioId}&select=*&order=created_at.desc`, { headers: HEADERS }).then(manejar),
+};
+
+export const SugerenciasCambioComercioExt = {
+  ...SugerenciasCambioComercio,
+  listarPendientePorComercio: (comercioId) =>
+    fetch(
+      `${SUPABASE_URL}/rest/v1/sugerencias_cambio_comercio?comercio_id=eq.${comercioId}&estado=eq.pendiente&select=*&order=created_at.desc&limit=1`,
+      { headers: HEADERS }
+    ).then(manejar),
 };
 
 export const ReabastecimientoAjustesExt = {

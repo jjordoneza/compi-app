@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { ComerciosExt } from '../../supabase';
+import { ComerciosExt, SugerenciasCambioComercioExt } from '../../supabase';
+import { usuarioActual } from '../../auth';
 import { useComercioActual } from '../../comercioActual';
 import { COLORS, RADIUS } from '../../theme';
 
@@ -16,20 +17,36 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   const [barrio, setBarrio] = useState('');
   const [direccion, setDireccion] = useState('');
   const [detalles, setDetalles] = useState('');
+  // Teléfono y nombre de contacto no se guardan directo — pasan por
+  // aprobación admin (sugerencias_cambio_comercio). El resto sí es
+  // autoservicio, igual que siempre.
+  const [telefono, setTelefono] = useState('');
+  const [contactoNombre, setContactoNombre] = useState('');
+  const [telefonoOriginal, setTelefonoOriginal] = useState('');
+  const [contactoNombreOriginal, setContactoNombreOriginal] = useState('');
+  const [pendiente, setPendiente] = useState(null);
 
   useEffect(() => { cargar(); }, []);
 
   async function cargar() {
     setCargando(true);
     try {
-      const filas = await ComerciosExt.listarPorId(comercioId);
+      const [filas, pendientes] = await Promise.all([
+        ComerciosExt.listarPorId(comercioId),
+        SugerenciasCambioComercioExt.listarPendientePorComercio(comercioId),
+      ]);
       const comercio = filas?.[0];
       if (comercio) {
         setNombre(comercio.nombre || '');
         setBarrio(comercio.barrio || '');
         setDireccion(comercio.direccion || '');
         setDetalles(comercio.detalles || '');
+        setTelefono(comercio.telefono || '');
+        setContactoNombre(comercio.contacto_nombre || '');
+        setTelefonoOriginal(comercio.telefono || '');
+        setContactoNombreOriginal(comercio.contacto_nombre || '');
       }
+      setPendiente(pendientes?.[0] || null);
     } catch (e) {
       Alert.alert('Error cargando', e.message);
     } finally {
@@ -47,10 +64,31 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
         direccion: direccion.trim() || null,
         detalles: detalles.trim() || null,
       });
+
+      const telefonoCambio = telefono.trim() !== (telefonoOriginal || '');
+      const contactoCambio = contactoNombre.trim() !== (contactoNombreOriginal || '');
+      if (telefonoCambio || contactoCambio) {
+        await SugerenciasCambioComercioExt.crear({
+          comercio_id: comercioId,
+          sugerido_por: usuarioActual()?.id || null,
+          telefono_sugerido: telefonoCambio ? telefono.trim() : null,
+          contacto_nombre_sugerido: contactoCambio ? contactoNombre.trim() : null,
+        });
+      }
+
       // Actualiza el Context ya mismo — así Inicio y Perfil muestran el nombre
       // nuevo sin necesidad de que esas tabs vuelvan a tener foco.
       setComercioActual({ comercioNombre: nombre.trim() });
-      navigation.navigate('Home', { screen: 'PerfilTab', params: { comercioId, comercioNombre: nombre.trim() } });
+
+      if (telefonoCambio || contactoCambio) {
+        Alert.alert(
+          'Guardado',
+          'Tus datos se actualizaron. El cambio de teléfono/nombre de contacto quedó enviado a revisión.',
+          [{ text: 'Entendido', onPress: () => navigation.navigate('Home', { screen: 'PerfilTab', params: { comercioId, comercioNombre: nombre.trim() } }) }]
+        );
+      } else {
+        navigation.navigate('Home', { screen: 'PerfilTab', params: { comercioId, comercioNombre: nombre.trim() } });
+      }
     } catch (e) {
       Alert.alert('Error guardando', e.message);
     } finally {
@@ -89,6 +127,31 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
           onChangeText={setDetalles}
         />
 
+        <Text style={styles.label}>Teléfono de contacto</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej. 3001234567"
+          value={telefono}
+          onChangeText={setTelefono}
+          keyboardType="phone-pad"
+        />
+
+        <Text style={styles.label}>Nombre de quien atiende</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej. Juan Pérez"
+          value={contactoNombre}
+          onChangeText={setContactoNombre}
+        />
+
+        {pendiente && (
+          <Text style={styles.aviso}>
+            Ya tienes un cambio de contacto en revisión
+            {pendiente.telefono_sugerido ? ` (teléfono: ${pendiente.telefono_sugerido})` : ''}
+            {pendiente.contacto_nombre_sugerido ? ` (nombre: ${pendiente.contacto_nombre_sugerido})` : ''}.
+          </Text>
+        )}
+
         <TouchableOpacity
           style={[styles.boton, (!nombre.trim() || guardando) && styles.botonDeshabilitado]}
           disabled={!nombre.trim() || guardando}
@@ -107,6 +170,7 @@ const styles = StyleSheet.create({
   subtitulo: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4, marginBottom: 16 },
   label: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 6, marginTop: 8 },
   input: { height: 48, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.white, marginBottom: 6 },
+  aviso: { fontSize: 12, color: COLORS.textSecondary, backgroundColor: COLORS.white, borderRadius: RADIUS.sm, padding: 10, marginTop: 8, lineHeight: 17 },
   boton: { marginTop: 20, height: 50, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
   botonTexto: { color: COLORS.white, fontWeight: '600', fontSize: 15 },

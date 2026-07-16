@@ -73,3 +73,53 @@ export async function rechazarProducto(sugeridoId, motivo) {
   });
   if (error) throw error;
 }
+
+export async function listarCambiosProveedorPendientes() {
+  const { data, error } = await supabase
+    .from('sugerencias_cambio_proveedor')
+    .select('*, comercios(nombre, barrio), proveedores_maestro(nombre, telefono)')
+    .eq('estado', 'pendiente')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function listarCambiosComercioPendientes() {
+  const { data, error } = await supabase
+    .from('sugerencias_cambio_comercio')
+    .select('*, comercios(nombre, barrio, telefono, contacto_nombre)')
+    .eq('estado', 'pendiente')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function aprobarCambioProveedor(sugerenciaId) {
+  const { error } = await supabase.rpc('aprobar_cambio_numero_proveedor', {
+    p_sugerencia_id: sugerenciaId,
+  });
+  if (error) throw error;
+}
+
+export async function rechazarCambioProveedor(sugerenciaId, motivo) {
+  const { error } = await supabase.rpc('rechazar_cambio_numero_proveedor', {
+    p_sugerencia_id: sugerenciaId,
+    p_motivo: motivo || null,
+  });
+  if (error) throw error;
+}
+
+export async function aprobarCambioComercio(sugerenciaId) {
+  const { error } = await supabase.rpc('aprobar_cambio_comercio', {
+    p_sugerencia_id: sugerenciaId,
+  });
+  if (error) throw error;
+}
+
+export async function rechazarCambioComercio(sugerenciaId, motivo) {
+  const { error } = await supabase.rpc('rechazar_cambio_comercio', {
+    p_sugerencia_id: sugerenciaId,
+    p_motivo: motivo || null,
+  });
+  if (error) throw error;
+}
