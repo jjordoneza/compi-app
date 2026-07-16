@@ -109,39 +109,69 @@ function GraficoTendencia({ datos }) {
   );
 }
 
+const RANGOS = [
+  { id: 'dia', label: 'Día', dias: 1 },
+  { id: 'semana', label: 'Semana', dias: 7 },
+  { id: 'mes', label: 'Mes', dias: 30 },
+];
+
 export default function Dashboard() {
+  const [rango, setRango] = useState('semana');
   const [stats, setStats] = useState(null);
   const [serie, setSerie] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([obtenerStats(), obtenerAbastecimientosPorDia()])
-      .then(([s, d]) => {
-        setStats(s);
-        setSerie(d);
-      })
+    const dias = RANGOS.find((r) => r.id === rango).dias;
+    setStats(null);
+    obtenerStats(dias)
+      .then(setStats)
+      .catch((e) => setError(e.message));
+  }, [rango]);
+
+  useEffect(() => {
+    // El gráfico de tendencia se queda fijo en 30 días independiente del
+    // filtro — un rango de "día" con bucket diario solo daría 1 barra.
+    obtenerAbastecimientosPorDia()
+      .then(setSerie)
       .catch((e) => setError(e.message));
   }, []);
 
   if (error) return <p className="error">{error}</p>;
-  if (stats === null || serie === null) return <p className="ayuda">Cargando...</p>;
 
   return (
     <div>
-      <div className="statGrid">
-        <StatTile label="Pedidos procesando" valor={stats.pedidos_pendientes} tono="warning" />
-        <StatTile label="Pedidos confirmados" valor={stats.pedidos_confirmados} tono="info" />
-        <StatTile label="Pedidos entregados" valor={stats.pedidos_entregados} tono="good" />
-        <StatTile label="Sugerencias pendientes" valor={stats.sugerencias_pendientes} tono="accent" />
-        <StatTile label="Negocios" valor={stats.total_comercios} />
-        <StatTile label="Proveedores maestro" valor={stats.total_proveedores_maestro} />
-        <StatTile label="Productos maestro" valor={stats.total_productos_maestro} />
-        <StatTile label="Usuarios activos (7d)" valor={stats.usuarios_activos_7d} />
-      </div>
+      <nav className="filtro">
+        {RANGOS.map((r) => (
+          <button
+            key={r.id}
+            type="button"
+            className={rango === r.id ? 'activo' : ''}
+            onClick={() => setRango(r.id)}
+          >
+            {r.label}
+          </button>
+        ))}
+      </nav>
+
+      {stats === null ? (
+        <p className="ayuda">Cargando...</p>
+      ) : (
+        <div className="statGrid">
+          <StatTile label="Pedidos procesando" valor={stats.pedidos_pendientes} tono="warning" />
+          <StatTile label="Pedidos confirmados" valor={stats.pedidos_confirmados} tono="info" />
+          <StatTile label="Pedidos entregados" valor={stats.pedidos_entregados} tono="good" />
+          <StatTile label="Sugerencias pendientes" valor={stats.sugerencias_pendientes} tono="accent" />
+          <StatTile label="Negocios" valor={stats.total_comercios} />
+          <StatTile label="Proveedores maestro" valor={stats.total_proveedores_maestro} />
+          <StatTile label="Productos maestro" valor={stats.total_productos_maestro} />
+          <StatTile label="Usuarios activos" valor={stats.usuarios_activos} />
+        </div>
+      )}
 
       <div className="chartCard">
         <p className="chartTitulo">Abastecimientos por día — últimos 30 días</p>
-        <GraficoTendencia datos={serie} />
+        {serie === null ? <p className="ayuda">Cargando...</p> : <GraficoTendencia datos={serie} />}
       </div>
     </div>
   );

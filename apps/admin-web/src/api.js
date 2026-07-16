@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient';
 
-export async function obtenerStats() {
-  const { data, error } = await supabase.rpc('admin_stats');
+export async function obtenerStats(dias) {
+  const { data, error } = await supabase.rpc('admin_stats', { p_dias: dias });
   if (error) throw error;
   return data?.[0] || null;
 }

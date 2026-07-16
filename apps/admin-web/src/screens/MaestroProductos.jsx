@@ -1,30 +1,18 @@
 import { useEffect, useState } from 'react';
-import {
-  listarProveedoresMaestro,
-  crearProveedorMaestro,
-  actualizarProveedorMaestro,
-  listarProductosMaestro,
-  crearProductoMaestro,
-  actualizarProductoMaestro,
-} from '../api';
+import { listarProductosMaestro, crearProductoMaestro, actualizarProductoMaestro } from '../api';
 
 const CATEGORIAS = [
   'Huevos', 'Lácteos', 'Bebidas', 'Snacks', 'Aseo',
   'Panadería', 'Carnes', 'Granos y abarrotes', 'Cigarrería', 'Verduras y frutas',
 ];
 
-function Chips({ opciones, seleccion, multiple, onToggle }) {
+function Chips({ opciones, seleccion, onToggle }) {
   return (
     <div className="chipsContainer">
       {opciones.map((op) => {
-        const activo = multiple ? seleccion.includes(op) : seleccion === op;
+        const activo = seleccion === op;
         return (
-          <button
-            key={op}
-            type="button"
-            className={activo ? 'chip chipActivo' : 'chip'}
-            onClick={() => onToggle(op)}
-          >
+          <button key={op} type="button" className={activo ? 'chip chipActivo' : 'chip'} onClick={() => onToggle(op)}>
             {activo ? '✓ ' : ''}
             {op}
           </button>
@@ -34,69 +22,13 @@ function Chips({ opciones, seleccion, multiple, onToggle }) {
   );
 }
 
-function FilaProveedor({ item, onGuardado }) {
-  const [editando, setEditando] = useState(false);
-  const [nombre, setNombre] = useState(item.nombre || '');
-  const [categorias, setCategorias] = useState(
-    (item.categoria || '').split(',').map((c) => c.trim()).filter(Boolean)
-  );
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState('');
-
-  function toggle(cat) {
-    setCategorias((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
-  }
-
-  async function guardar() {
-    setError('');
-    setGuardando(true);
-    try {
-      await actualizarProveedorMaestro(item.id, { nombre: nombre.trim(), categoria: categorias.join(', ') });
-      setEditando(false);
-      await onGuardado();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  return (
-    <tr>
-      <td>{editando ? <input value={nombre} onChange={(e) => setNombre(e.target.value)} /> : item.nombre}</td>
-      <td style={{ minWidth: 260 }}>
-        {editando ? (
-          <Chips opciones={CATEGORIAS} seleccion={categorias} multiple onToggle={toggle} />
-        ) : (
-          item.categoria || <span style={{ color: 'var(--text-muted)' }}>—</span>
-        )}
-      </td>
-      <td className="acciones-cell">
-        {error && <span className="error">{error}</span>}
-        {editando ? (
-          <>
-            <button type="button" className="gridBoton" disabled={guardando} onClick={guardar}>
-              {guardando ? '...' : 'Guardar'}
-            </button>
-            <button type="button" className="gridBoton secundario" disabled={guardando} onClick={() => setEditando(false)}>
-              Cancelar
-            </button>
-          </>
-        ) : (
-          <button type="button" className="gridBoton secundario" onClick={() => setEditando(true)}>
-            Editar
-          </button>
-        )}
-      </td>
-    </tr>
-  );
-}
-
 function FilaProducto({ item, onGuardado }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(item.nombre || '');
   const [presentacion, setPresentacion] = useState(item.presentacion || '');
   const [categoria, setCategoria] = useState(item.categoria || null);
+  const [unidadEmpaque, setUnidadEmpaque] = useState(item.unidad_empaque || '');
+  const [unidadesPorCaja, setUnidadesPorCaja] = useState(item.unidades_por_caja ?? '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -108,6 +40,8 @@ function FilaProducto({ item, onGuardado }) {
         nombre: nombre.trim(),
         presentacion: presentacion.trim(),
         categoria: categoria || '',
+        unidad_empaque: unidadEmpaque.trim() || null,
+        unidades_por_caja: unidadesPorCaja === '' ? null : Number(unidadesPorCaja),
       });
       setEditando(false);
       await onGuardado();
@@ -130,14 +64,28 @@ function FilaProducto({ item, onGuardado }) {
       </td>
       <td style={{ minWidth: 260 }}>
         {editando ? (
-          <Chips
-            opciones={CATEGORIAS}
-            seleccion={categoria}
-            multiple={false}
-            onToggle={(cat) => setCategoria(categoria === cat ? null : cat)}
-          />
+          <Chips opciones={CATEGORIAS} seleccion={categoria} onToggle={(cat) => setCategoria(categoria === cat ? null : cat)} />
         ) : (
           item.categoria || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
+      <td>
+        {editando ? (
+          <input placeholder="ej. botella" value={unidadEmpaque} onChange={(e) => setUnidadEmpaque(e.target.value)} />
+        ) : (
+          item.unidad_empaque || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
+      <td>
+        {editando ? (
+          <input
+            type="number"
+            placeholder="ej. 12"
+            value={unidadesPorCaja}
+            onChange={(e) => setUnidadesPorCaja(e.target.value)}
+          />
+        ) : (
+          item.unidades_por_caja ?? <span style={{ color: 'var(--text-muted)' }}>—</span>
         )}
       </td>
       <td className="acciones-cell">
@@ -162,23 +110,20 @@ function FilaProducto({ item, onGuardado }) {
 }
 
 export default function MaestroProductos() {
-  const [tab, setTab] = useState('proveedores');
-  const [proveedores, setProveedores] = useState(null);
   const [productos, setProductos] = useState(null);
   const [error, setError] = useState('');
 
   const [nombreNuevo, setNombreNuevo] = useState('');
-  const [categoriasNuevo, setCategoriasNuevo] = useState([]);
   const [presentacionNuevo, setPresentacionNuevo] = useState('');
-  const [categoriaNuevoProducto, setCategoriaNuevoProducto] = useState(null);
+  const [categoriaNuevo, setCategoriaNuevo] = useState(null);
+  const [unidadEmpaqueNuevo, setUnidadEmpaqueNuevo] = useState('');
+  const [unidadesPorCajaNuevo, setUnidadesPorCajaNuevo] = useState('');
   const [creando, setCreando] = useState(false);
   const [mostrarCrear, setMostrarCrear] = useState(false);
 
   async function cargar() {
     try {
-      const [provs, prods] = await Promise.all([listarProveedoresMaestro(), listarProductosMaestro()]);
-      setProveedores(provs);
-      setProductos(prods);
+      setProductos(await listarProductosMaestro());
     } catch (e) {
       setError(e.message);
     }
@@ -188,28 +133,23 @@ export default function MaestroProductos() {
     cargar();
   }, []);
 
-  function toggleNuevaCategoria(cat) {
-    setCategoriasNuevo((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
-  }
-
   async function crear() {
     if (!nombreNuevo.trim()) return;
     setCreando(true);
     setError('');
     try {
-      if (tab === 'proveedores') {
-        await crearProveedorMaestro({ nombre: nombreNuevo.trim(), categoria: categoriasNuevo.join(', ') });
-      } else {
-        await crearProductoMaestro({
-          nombre: nombreNuevo.trim(),
-          presentacion: presentacionNuevo.trim(),
-          categoria: categoriaNuevoProducto || '',
-        });
-      }
+      await crearProductoMaestro({
+        nombre: nombreNuevo.trim(),
+        presentacion: presentacionNuevo.trim(),
+        categoria: categoriaNuevo || '',
+        unidad_empaque: unidadEmpaqueNuevo.trim() || null,
+        unidades_por_caja: unidadesPorCajaNuevo === '' ? null : Number(unidadesPorCajaNuevo),
+      });
       setNombreNuevo('');
-      setCategoriasNuevo([]);
       setPresentacionNuevo('');
-      setCategoriaNuevoProducto(null);
+      setCategoriaNuevo(null);
+      setUnidadEmpaqueNuevo('');
+      setUnidadesPorCajaNuevo('');
       setMostrarCrear(false);
       await cargar();
     } catch (e) {
@@ -219,23 +159,10 @@ export default function MaestroProductos() {
     }
   }
 
-  if (proveedores === null || productos === null) {
-    return error ? <p className="error">{error}</p> : <p className="ayuda">Cargando...</p>;
-  }
-
-  const lista = tab === 'proveedores' ? proveedores : productos;
+  if (productos === null) return error ? <p className="error">{error}</p> : <p className="ayuda">Cargando...</p>;
 
   return (
     <div>
-      <nav className="tabs" style={{ marginBottom: 16, maxWidth: 400 }}>
-        <button type="button" className={tab === 'proveedores' ? 'activo' : ''} onClick={() => setTab('proveedores')}>
-          Proveedores
-        </button>
-        <button type="button" className={tab === 'productos' ? 'activo' : ''} onClick={() => setTab('productos')}>
-          Productos
-        </button>
-      </nav>
-
       {error && <p className="error">{error}</p>}
 
       <div style={{ marginBottom: 14 }}>
@@ -252,24 +179,26 @@ export default function MaestroProductos() {
             onChange={(e) => setNombreNuevo(e.target.value)}
             style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
           />
-          {tab === 'proveedores' ? (
-            <Chips opciones={CATEGORIAS} seleccion={categoriasNuevo} multiple onToggle={toggleNuevaCategoria} />
-          ) : (
-            <>
-              <input
-                placeholder="Presentación (ej. Canasta, Six pack)"
-                value={presentacionNuevo}
-                onChange={(e) => setPresentacionNuevo(e.target.value)}
-                style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
-              />
-              <Chips
-                opciones={CATEGORIAS}
-                seleccion={categoriaNuevoProducto}
-                multiple={false}
-                onToggle={(cat) => setCategoriaNuevoProducto(categoriaNuevoProducto === cat ? null : cat)}
-              />
-            </>
-          )}
+          <input
+            placeholder="Presentación (ej. Canasta, Six pack)"
+            value={presentacionNuevo}
+            onChange={(e) => setPresentacionNuevo(e.target.value)}
+            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
+          />
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10, maxWidth: 320 }}>
+            <input
+              placeholder="Unidad (ej. botella)"
+              value={unidadEmpaqueNuevo}
+              onChange={(e) => setUnidadEmpaqueNuevo(e.target.value)}
+            />
+            <input
+              type="number"
+              placeholder="Unid./caja (ej. 12)"
+              value={unidadesPorCajaNuevo}
+              onChange={(e) => setUnidadesPorCajaNuevo(e.target.value)}
+            />
+          </div>
+          <Chips opciones={CATEGORIAS} seleccion={categoriaNuevo} onToggle={(cat) => setCategoriaNuevo(categoriaNuevo === cat ? null : cat)} />
           <button
             type="button"
             disabled={creando || !nombreNuevo.trim()}
@@ -281,35 +210,25 @@ export default function MaestroProductos() {
         </div>
       )}
 
-      {lista.length === 0 ? (
+      {productos.length === 0 ? (
         <p className="vacio">Nada creado todavía.</p>
       ) : (
         <div className="gridWrap">
           <table className="grid">
             <thead>
-              {tab === 'proveedores' ? (
-                <tr>
-                  <th>Nombre</th>
-                  <th>Categorías</th>
-                  <th>Acciones</th>
-                </tr>
-              ) : (
-                <tr>
-                  <th>Nombre</th>
-                  <th>Presentación</th>
-                  <th>Categoría</th>
-                  <th>Acciones</th>
-                </tr>
-              )}
+              <tr>
+                <th>Nombre</th>
+                <th>Presentación</th>
+                <th>Categoría</th>
+                <th>Unidad</th>
+                <th>Unid./caja</th>
+                <th>Acciones</th>
+              </tr>
             </thead>
             <tbody>
-              {lista.map((item) =>
-                tab === 'proveedores' ? (
-                  <FilaProveedor key={item.id} item={item} onGuardado={cargar} />
-                ) : (
-                  <FilaProducto key={item.id} item={item} onGuardado={cargar} />
-                )
-              )}
+              {productos.map((item) => (
+                <FilaProducto key={item.id} item={item} onGuardado={cargar} />
+              ))}
             </tbody>
           </table>
         </div>
