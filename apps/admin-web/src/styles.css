@@ -1,0 +1,233 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f5f6f8;
+  color: #1a1a1a;
+}
+
+.centro {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.login {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.login h1 {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+input {
+  height: 44px;
+  border: 1px solid #d8dbe0;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 14px;
+  background: #fff;
+}
+
+button {
+  height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: #1f9d55;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.topbar h1 {
+  font-size: 18px;
+}
+
+.topbar button {
+  height: 36px;
+  padding: 0 14px;
+  background: #fff;
+  color: #1a1a1a;
+  border: 1px solid #d8dbe0;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tabs button {
+  flex: 1;
+  background: #fff;
+  color: #6b7280;
+  border: 1px solid #d8dbe0;
+}
+
+.tabs button.activo {
+  background: #e8f7ee;
+  color: #1f9d55;
+  border-color: #1f9d55;
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tarjeta {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.filaTop {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: inherit;
+  height: auto;
+  cursor: pointer;
+}
+
+.sub {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 2px 0 0;
+}
+
+.fecha {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.panel {
+  border-top: 1px solid #e5e7eb;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fafbfc;
+}
+
+.ayuda {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.vacio {
+  color: #6b7280;
+  text-align: center;
+  margin-top: 40px;
+}
+
+.resultados {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.match {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  color: #1a1a1a;
+  border: 1px solid #d8dbe0;
+  height: auto;
+  padding: 8px 10px;
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.match.activo {
+  background: #e8f7ee;
+  border-color: #1f9d55;
+  color: #1f9d55;
+  font-weight: 600;
+}
+
+.acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.acciones .aprobar {
+  flex: 1;
+}
+
+.acciones .rechazar {
+  background: #fff;
+  color: #b3261e;
+  border: 1px solid #f3c5c1;
+}
+
+.rechazo {
+  display: flex;
+  gap: 8px;
+}
+
+.rechazo input {
+  flex: 1;
+}
+
+.rechazo button {
+  background: #b3261e;
+  white-space: nowrap;
+  padding: 0 14px;
+}
+
+.error {
+  color: #b3261e;
+  font-size: 13px;
+  margin: 0;
+}
