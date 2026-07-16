@@ -1,7 +1,9 @@
-import { TouchableOpacity, Text } from 'react-native';
+import { useEffect } from 'react';
+import { TouchableOpacity, Text, AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { refrescarSiHaceFalta } from './auth';
 import SplashScreen from './screens/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
 import VerificacionScreen from './screens/VerificacionScreen';
@@ -47,7 +49,29 @@ function BotonAlInicio({ navigation, route }) {
   );
 }
 
+// El access_token vive ~1h. cargarSesion() lo refresca solo una vez, al abrir la
+// app — una sesión larga sin reiniciar (o que vuelve de background) podía quedarse
+// con un token vencido, y bajo RLS eso no da error: PostgREST simplemente no
+// devuelve filas, así que datos que sí existen "desaparecen" de la UI en silencio.
+// Este intervalo + el listener de AppState mantienen el token vigente durante el uso.
+const INTERVALO_REFRESCO_MS = 4 * 60 * 1000;
+
+function useRefrescoSesion() {
+  useEffect(() => {
+    const intervalo = setInterval(() => { refrescarSiHaceFalta(); }, INTERVALO_REFRESCO_MS);
+    const suscripcion = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active') refrescarSiHaceFalta();
+    });
+    return () => {
+      clearInterval(intervalo);
+      suscripcion.remove();
+    };
+  }, []);
+}
+
 export default function App() {
+  useRefrescoSesion();
+
   return (
     <SafeAreaProvider>
       <NavigationContainer>
