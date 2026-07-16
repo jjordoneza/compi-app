@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
-import { ProductosMaestroExt, ProductosRelacionExt } from '../supabase';
+import { ProductosMaestroExt, ProductosRelacionExt, ProductosSugeridos } from '../supabase';
+import { usuarioActual } from '../auth';
 import { extraerProductosDePedido } from '../ai';
 import { COLORS, RADIUS } from '../theme';
 
@@ -39,44 +40,56 @@ export default function PegarPedidoScreen({ route, navigation }) {
     setGuardando(true);
     try {
       const precargaCantidades = {};
+      let nuevosCount = 0;
 
       for (const item of detectados) {
-        let productoMaestro = await ProductosMaestroExt.buscarPorNombreExacto(item.nombre);
-        if (!productoMaestro) {
-          const creado = await ProductosMaestroExt.crear({
+        // Fase 3: solo un match exacto con el catálogo global se autoservicio
+        // (vincular un producto EXISTENTE a mi relación). Si no existe, ya no lo
+        // creamos directo en productos_maestro — va a la cola de curaduría.
+        const productoMaestro = await ProductosMaestroExt.buscarPorNombreExacto(item.nombre);
+        if (productoMaestro) {
+          const productoRelacionCreado = await ProductosRelacionExt.crear({
+            relacion_id: relacionId,
+            producto_id: productoMaestro.id,
+            precio_pactado: null,
+          });
+          precargaCantidades[productoRelacionCreado[0].id] = item.cantidad;
+        } else {
+          await ProductosSugeridos.crear({
+            comercio_id: comercioId,
+            relacion_id: relacionId,
+            sugerido_por: usuarioActual()?.id || null,
             nombre: item.nombre,
             presentacion: item.presentacion,
             categoria: '',
+            estado: 'pendiente',
           });
-          productoMaestro = creado[0];
+          nuevosCount++;
         }
-        const productoRelacionCreado = await ProductosRelacionExt.crear({
-          relacion_id: relacionId,
-          producto_id: productoMaestro.id,
-          precio_pactado: null,
-        });
-        precargaCantidades[productoRelacionCreado[0].id] = item.cantidad;
       }
+
+      const matchCount = detectados.length - nuevosCount;
+      const partesMensaje = [];
+      if (matchCount > 0) partesMensaje.push(`${matchCount} ya estaban en nuestro catálogo y quedaron vinculados a ${proveedorNombre}.`);
+      if (nuevosCount > 0) partesMensaje.push(`${nuevosCount} son nuevos y quedaron en revisión — te avisamos cuando estén disponibles.`);
 
       Alert.alert(
         'Catálogo actualizado',
-        `Agregamos ${detectados.length} producto(s) que ${proveedorNombre} vende. Aún no tienen precio.\n\n¿Quieres armar un pedido de una vez con estas cantidades?`,
-        [
-          {
-            text: 'No, solo guardar',
-            style: 'cancel',
-            onPress: () => navigation.goBack(),
-          },
-          {
-            text: 'Sí, armar pedido',
-            onPress: () =>
-              navigation.replace('NuevoAbastecimiento', {
-                comercioId,
-                comercioNombre,
-                precargarCantidades: precargaCantidades,
-              }),
-          },
-        ]
+        partesMensaje.join(' ') + (matchCount > 0 ? '\n\n¿Quieres armar un pedido de una vez con los ya vinculados?' : ''),
+        matchCount > 0
+          ? [
+              { text: 'No, solo guardar', style: 'cancel', onPress: () => navigation.goBack() },
+              {
+                text: 'Sí, armar pedido',
+                onPress: () =>
+                  navigation.replace('NuevoAbastecimiento', {
+                    comercioId,
+                    comercioNombre,
+                    precargarCantidades: precargaCantidades,
+                  }),
+              },
+            ]
+          : [{ text: 'Entendido', onPress: () => navigation.goBack() }]
       );
     } catch (e) {
       Alert.alert('Error guardando', e.message);
