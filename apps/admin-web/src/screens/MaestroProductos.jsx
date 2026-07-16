@@ -62,24 +62,33 @@ function FilaProveedor({ item, onGuardado }) {
   }
 
   return (
-    <li className="tarjeta">
-      <button type="button" className="filaTop" onClick={() => setEditando((v) => !v)}>
-        <div>
-          <strong>{item.nombre}</strong>
-          <p className="sub">{item.categoria || 'Sin categoría'}</p>
-        </div>
-      </button>
-      {editando && (
-        <div className="panel">
-          {error && <p className="error">{error}</p>}
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} />
+    <tr>
+      <td>{editando ? <input value={nombre} onChange={(e) => setNombre(e.target.value)} /> : item.nombre}</td>
+      <td style={{ minWidth: 260 }}>
+        {editando ? (
           <Chips opciones={CATEGORIAS} seleccion={categorias} multiple onToggle={toggle} />
-          <button type="button" className="aprobar" disabled={guardando} onClick={guardar}>
-            {guardando ? 'Guardando...' : 'Guardar cambios'}
+        ) : (
+          item.categoria || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
+      <td className="acciones-cell">
+        {error && <span className="error">{error}</span>}
+        {editando ? (
+          <>
+            <button type="button" className="gridBoton" disabled={guardando} onClick={guardar}>
+              {guardando ? '...' : 'Guardar'}
+            </button>
+            <button type="button" className="gridBoton secundario" disabled={guardando} onClick={() => setEditando(false)}>
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <button type="button" className="gridBoton secundario" onClick={() => setEditando(true)}>
+            Editar
           </button>
-        </div>
-      )}
-    </li>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -110,32 +119,45 @@ function FilaProducto({ item, onGuardado }) {
   }
 
   return (
-    <li className="tarjeta">
-      <button type="button" className="filaTop" onClick={() => setEditando((v) => !v)}>
-        <div>
-          <strong>{item.nombre}</strong>
-          <p className="sub">
-            {item.presentacion || ''} · {item.categoria || 'Sin categoría'}
-          </p>
-        </div>
-      </button>
-      {editando && (
-        <div className="panel">
-          {error && <p className="error">{error}</p>}
-          <input placeholder="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          <input placeholder="Presentación" value={presentacion} onChange={(e) => setPresentacion(e.target.value)} />
+    <tr>
+      <td>{editando ? <input value={nombre} onChange={(e) => setNombre(e.target.value)} /> : item.nombre}</td>
+      <td>
+        {editando ? (
+          <input value={presentacion} onChange={(e) => setPresentacion(e.target.value)} />
+        ) : (
+          item.presentacion || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
+      <td style={{ minWidth: 260 }}>
+        {editando ? (
           <Chips
             opciones={CATEGORIAS}
             seleccion={categoria}
             multiple={false}
             onToggle={(cat) => setCategoria(categoria === cat ? null : cat)}
           />
-          <button type="button" className="aprobar" disabled={guardando} onClick={guardar}>
-            {guardando ? 'Guardando...' : 'Guardar cambios'}
+        ) : (
+          item.categoria || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
+      <td className="acciones-cell">
+        {error && <span className="error">{error}</span>}
+        {editando ? (
+          <>
+            <button type="button" className="gridBoton" disabled={guardando} onClick={guardar}>
+              {guardando ? '...' : 'Guardar'}
+            </button>
+            <button type="button" className="gridBoton secundario" disabled={guardando} onClick={() => setEditando(false)}>
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <button type="button" className="gridBoton secundario" onClick={() => setEditando(true)}>
+            Editar
           </button>
-        </div>
-      )}
-    </li>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -150,6 +172,7 @@ export default function MaestroProductos() {
   const [presentacionNuevo, setPresentacionNuevo] = useState('');
   const [categoriaNuevoProducto, setCategoriaNuevoProducto] = useState(null);
   const [creando, setCreando] = useState(false);
+  const [mostrarCrear, setMostrarCrear] = useState(false);
 
   async function cargar() {
     try {
@@ -187,6 +210,7 @@ export default function MaestroProductos() {
       setCategoriasNuevo([]);
       setPresentacionNuevo('');
       setCategoriaNuevoProducto(null);
+      setMostrarCrear(false);
       await cargar();
     } catch (e) {
       setError(e.message);
@@ -203,7 +227,7 @@ export default function MaestroProductos() {
 
   return (
     <div>
-      <nav className="tabs" style={{ marginBottom: 16 }}>
+      <nav className="tabs" style={{ marginBottom: 16, maxWidth: 400 }}>
         <button type="button" className={tab === 'proveedores' ? 'activo' : ''} onClick={() => setTab('proveedores')}>
           Proveedores
         </button>
@@ -214,56 +238,81 @@ export default function MaestroProductos() {
 
       {error && <p className="error">{error}</p>}
 
-      <h2 className="subtitulo">Crear nuevo</h2>
-      <input
-        placeholder="Nombre"
-        value={nombreNuevo}
-        onChange={(e) => setNombreNuevo(e.target.value)}
-        style={{ marginBottom: 10, width: '100%' }}
-      />
-      {tab === 'proveedores' ? (
-        <Chips opciones={CATEGORIAS} seleccion={categoriasNuevo} multiple onToggle={toggleNuevaCategoria} />
-      ) : (
-        <>
-          <input
-            placeholder="Presentación (ej. Canasta, Six pack)"
-            value={presentacionNuevo}
-            onChange={(e) => setPresentacionNuevo(e.target.value)}
-            style={{ marginBottom: 10, width: '100%' }}
-          />
-          <Chips
-            opciones={CATEGORIAS}
-            seleccion={categoriaNuevoProducto}
-            multiple={false}
-            onToggle={(cat) => setCategoriaNuevoProducto(categoriaNuevoProducto === cat ? null : cat)}
-          />
-        </>
-      )}
-      <button
-        type="button"
-        className="aprobar"
-        disabled={creando || !nombreNuevo.trim()}
-        onClick={crear}
-        style={{ marginTop: 12, width: '100%' }}
-      >
-        {creando ? 'Guardando...' : 'Guardar'}
-      </button>
+      <div style={{ marginBottom: 14 }}>
+        <button type="button" className="gridBoton" style={{ height: 34 }} onClick={() => setMostrarCrear((v) => !v)}>
+          {mostrarCrear ? 'Cancelar' : '+ Crear nuevo'}
+        </button>
+      </div>
 
-      <h2 className="subtitulo" style={{ marginTop: 24 }}>
-        {tab === 'proveedores' ? 'Proveedores existentes' : 'Productos existentes'}
-      </h2>
+      {mostrarCrear && (
+        <div className="chartCard">
+          <input
+            placeholder="Nombre"
+            value={nombreNuevo}
+            onChange={(e) => setNombreNuevo(e.target.value)}
+            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
+          />
+          {tab === 'proveedores' ? (
+            <Chips opciones={CATEGORIAS} seleccion={categoriasNuevo} multiple onToggle={toggleNuevaCategoria} />
+          ) : (
+            <>
+              <input
+                placeholder="Presentación (ej. Canasta, Six pack)"
+                value={presentacionNuevo}
+                onChange={(e) => setPresentacionNuevo(e.target.value)}
+                style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
+              />
+              <Chips
+                opciones={CATEGORIAS}
+                seleccion={categoriaNuevoProducto}
+                multiple={false}
+                onToggle={(cat) => setCategoriaNuevoProducto(categoriaNuevoProducto === cat ? null : cat)}
+              />
+            </>
+          )}
+          <button
+            type="button"
+            disabled={creando || !nombreNuevo.trim()}
+            onClick={crear}
+            style={{ marginTop: 12, maxWidth: 200 }}
+          >
+            {creando ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      )}
+
       {lista.length === 0 ? (
         <p className="vacio">Nada creado todavía.</p>
       ) : (
-        <ul className="lista">
-          {lista.map((item) =>
-            tab === 'proveedores' ? (
-              <FilaProveedor key={item.id} item={item} onGuardado={cargar} />
-            ) : (
-              <FilaProducto key={item.id} item={item} onGuardado={cargar} />
-            )
-          )}
-        </ul>
+        <div className="gridWrap">
+          <table className="grid">
+            <thead>
+              {tab === 'proveedores' ? (
+                <tr>
+                  <th>Nombre</th>
+                  <th>Categorías</th>
+                  <th>Acciones</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th>Nombre</th>
+                  <th>Presentación</th>
+                  <th>Categoría</th>
+                  <th>Acciones</th>
+                </tr>
+              )}
+            </thead>
+            <tbody>
+              {lista.map((item) =>
+                tab === 'proveedores' ? (
+                  <FilaProveedor key={item.id} item={item} onGuardado={cargar} />
+                ) : (
+                  <FilaProducto key={item.id} item={item} onGuardado={cargar} />
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

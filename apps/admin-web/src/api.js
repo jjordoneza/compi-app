@@ -1,5 +1,17 @@
 import { supabase } from './supabaseClient';
 
+export async function obtenerStats() {
+  const { data, error } = await supabase.rpc('admin_stats');
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+export async function obtenerAbastecimientosPorDia() {
+  const { data, error } = await supabase.rpc('admin_abastecimientos_por_dia');
+  if (error) throw error;
+  return data || [];
+}
+
 export async function listarComercios() {
   const { data, error } = await supabase.from('comercios').select('*').order('nombre', { ascending: true });
   if (error) throw error;
