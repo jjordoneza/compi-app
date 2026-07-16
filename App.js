@@ -22,6 +22,7 @@ import MiNegocioTenderoScreen from './screens/tendero/MiNegocioTenderoScreen';
 import PedidoEnviadoScreen from './screens/tendero/PedidoEnviadoScreen';
 import SeguimientoScreen from './screens/tendero/SeguimientoScreen';
 import ReabastecimientoRespuestaScreen from './screens/tendero/ReabastecimientoRespuestaScreen';
+import AgregarProveedorScreen from './screens/tendero/AgregarProveedorScreen';
 import PegarPedidoScreen from './screens/PegarPedidoScreen';
 import PedidosAdminScreen from './screens/PedidosAdminScreen';
 import SugerenciasCambioScreen from './screens/SugerenciasCambioScreen';
@@ -112,6 +113,11 @@ export default function App() {
             options={({ navigation, route }) => ({ title: 'Seguimiento', headerLeft: () => <BotonAlInicio navigation={navigation} route={route} /> })}
           />
           <Stack.Screen name="RespuestaReabastecimiento" component={ReabastecimientoRespuestaScreen} options={{ headerShown: false }} />
+          <Stack.Screen
+            name="AgregarProveedor"
+            component={AgregarProveedorScreen}
+            options={({ navigation }) => ({ title: 'Agregar proveedor', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
           <Stack.Screen
             name="PegarPedido"
             component={PegarPedidoScreen}

@@ -1,24 +1,16 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
-import { ProveedoresMaestro, RelacionesExt, PedidosExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresRecomendados } from '../../supabase';
+import { ProveedoresMaestro, RelacionesExt, PedidosExt, SugerenciasCambio, SugerenciasCambioExt } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
 
 const ETIQUETAS_SUG = { pendiente: 'Pendiente', aprobada: 'Aprobado', rechazada: 'Rechazado' };
 
 export default function ProveedoresTabScreen({ navigation, route }) {
   const { comercioId, comercioNombre } = route.params || {};
-  const [relacionesTodas, setRelacionesTodas] = useState([]); // incl. inactivas, para detectar re-vincular
   const [relacionesLista, setRelacionesLista] = useState([]);
-  const [todosLosProveedores, setTodosLosProveedores] = useState([]);
   const [sugerencias, setSugerencias] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [eliminandoId, setEliminandoId] = useState(null);
-
-  const [mostrarAgregar, setMostrarAgregar] = useState(false);
-  const [busquedaAgregar, setBusquedaAgregar] = useState('');
-  const [seleccionadosParaAgregar, setSeleccionadosParaAgregar] = useState([]);
-  const [proveedoresDelBarrio, setProveedoresDelBarrio] = useState([]);
-  const [guardandoSeleccion, setGuardandoSeleccion] = useState(false);
 
   const [editandoContactoId, setEditandoContactoId] = useState(null);
   const [telefonoContactoValor, setTelefonoContactoValor] = useState('');
@@ -26,7 +18,14 @@ export default function ProveedoresTabScreen({ navigation, route }) {
   const [proponiendoId, setProponiendoId] = useState(null);
   const [telefonoPropuestaValor, setTelefonoPropuestaValor] = useState('');
 
-  useEffect(() => { cargar(); }, [comercioId]);
+  useEffect(() => {
+    // "focus" (no solo mount): esta pantalla necesita enterarse de cambios hechos
+    // en otro lado — agregar un proveedor en AgregarProveedorScreen, o que un admin
+    // apruebe un cambio de teléfono — sin eso, solo se refrescaba reabriendo la app.
+    const unsubscribe = navigation.addListener('focus', cargar);
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, comercioId]);
 
   async function cargar() {
     if (!comercioId) return;
@@ -34,54 +33,15 @@ export default function ProveedoresTabScreen({ navigation, route }) {
       const relaciones = await RelacionesExt.listarPorComercio(comercioId); // incl. inactivas
       const todos = await ProveedoresMaestro.listar();
       const sugs = await SugerenciasCambioExt.listarPorComercio(comercioId);
-      setTodosLosProveedores(todos);
       setSugerencias(sugs);
-      setRelacionesTodas(relaciones);
       setRelacionesLista(
         relaciones
           .filter((r) => r.activo)
           .map((r) => ({ relacion: r, proveedor: todos.find((p) => p.id === r.proveedor_id) }))
           .filter((x) => x.proveedor)
       );
-
-      // RPC (Fase 3): devuelve solo los proveedor_id de otros comercios del mismo
-      // barrio, sin exponer sus filas — RLS ya no permite leerlas directo.
-      const idsProveedoresDelBarrio = await ProveedoresRecomendados.porBarrio(comercioId);
-      setProveedoresDelBarrio(idsProveedoresDelBarrio);
     } catch (e) {
       Alert.alert('Error cargando', e.message);
-    }
-  }
-
-  function toggleSeleccionParaAgregar(id) {
-    setSeleccionadosParaAgregar((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
-
-  async function confirmarAgregarSeleccionados() {
-    if (seleccionadosParaAgregar.length === 0) return;
-    setGuardandoSeleccion(true);
-    try {
-      for (const proveedorId of seleccionadosParaAgregar) {
-        // Si ya lo habías eliminado antes (y quedó desactivado, no borrado), lo
-        // reactivamos en vez de crear una relación duplicada — conserva su
-        // historial y precios viejos.
-        const inactiva = relacionesTodas.find((r) => r.proveedor_id === proveedorId && !r.activo);
-        if (inactiva) {
-          await RelacionesExt.actualizar(inactiva.id, { activo: true });
-        } else {
-          await RelacionesExt.crear({ comercio_id: comercioId, proveedor_id: proveedorId });
-        }
-      }
-      setMostrarAgregar(false);
-      setSeleccionadosParaAgregar([]);
-      setBusquedaAgregar('');
-      cargar();
-    } catch (e) {
-      Alert.alert('Error vinculando', e.message);
-    } finally {
-      setGuardandoSeleccion(false);
     }
   }
 
@@ -196,40 +156,9 @@ export default function ProveedoresTabScreen({ navigation, route }) {
     .filter((x) => x.proveedor.nombre.toLowerCase().includes(busqueda.toLowerCase()))
     .sort((a, b) => a.proveedor.nombre.localeCompare(b.proveedor.nombre, 'es'));
 
-  const idsVinculados = relacionesLista.map((x) => x.proveedor.id);
-  const disponibles = todosLosProveedores
-    .filter((p) => !idsVinculados.includes(p.id))
-    .filter((p) => p.nombre.toLowerCase().includes(busquedaAgregar.toLowerCase()));
-
-  const disponiblesDelBarrio = disponibles
-    .filter((p) => proveedoresDelBarrio.includes(p.id))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  const disponiblesOtros = disponibles
-    .filter((p) => !proveedoresDelBarrio.includes(p.id))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-
-  function renderProveedorSeleccionable(item) {
-    const activo = seleccionadosParaAgregar.includes(item.id);
-    return (
-      <TouchableOpacity
-        key={item.id}
-        style={[styles.itemPicker, activo && styles.itemPickerActivo]}
-        onPress={() => toggleSeleccionParaAgregar(item.id)}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={styles.itemNombre}>{item.nombre}</Text>
-          <Text style={styles.itemSub}>{item.categoria || 'Sin categoría'}</Text>
-        </View>
-        <View style={[styles.check, activo && styles.checkActivo]}>
-          {activo && <Text style={styles.checkTexto}>✓</Text>}
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 18, paddingTop: 60, paddingBottom: 40 }}>
-      <Text style={styles.titulo}>Proveedores</Text>
+      <Text style={styles.titulo}>Mis proveedores</Text>
       <TextInput style={styles.buscador} placeholder="Buscar proveedor..." value={busqueda} onChangeText={setBusqueda} />
 
       {filtrados.length === 0 && <Text style={styles.vacio}>No tienes proveedores todavía</Text>}
@@ -328,43 +257,12 @@ export default function ProveedoresTabScreen({ navigation, route }) {
         );
       })}
 
-      {!mostrarAgregar ? (
-        <TouchableOpacity style={styles.boton} onPress={() => setMostrarAgregar(true)}>
-          <Text style={styles.botonTexto}>+ Agregar proveedor de Compi</Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.panelAgregar}>
-          <Text style={styles.label}>Marca los que quieras agregar</Text>
-          <TextInput style={styles.buscador} placeholder="Buscar..." value={busquedaAgregar} onChangeText={setBusquedaAgregar} />
-
-          {disponiblesDelBarrio.length > 0 && (
-            <>
-              <Text style={styles.subLabel}>Usados por tiendas de tu barrio</Text>
-              {disponiblesDelBarrio.map(renderProveedorSeleccionable)}
-            </>
-          )}
-
-          <Text style={styles.subLabel}>Otros proveedores en Compi</Text>
-          {disponiblesOtros.length > 0 ? disponiblesOtros.map(renderProveedorSeleccionable) : (
-            <Text style={styles.vacio}>No hay más proveedores para agregar</Text>
-          )}
-
-          <View style={styles.filaBotonesFinal}>
-            <TouchableOpacity
-              style={[styles.botonGuardarSeleccion, (seleccionadosParaAgregar.length === 0 || guardandoSeleccion) && { opacity: 0.4 }]}
-              disabled={seleccionadosParaAgregar.length === 0 || guardandoSeleccion}
-              onPress={confirmarAgregarSeleccionados}
-            >
-              <Text style={styles.botonTexto}>
-                {guardandoSeleccion ? 'Guardando...' : `Guardar (${seleccionadosParaAgregar.length})`}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.botonCancelar} onPress={() => { setMostrarAgregar(false); setSeleccionadosParaAgregar([]); }}>
-              <Text style={styles.botonCancelarTexto}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <TouchableOpacity
+        style={styles.boton}
+        onPress={() => navigation.navigate('AgregarProveedor', { comercioId })}
+      >
+        <Text style={styles.botonTexto}>+ Agregar proveedor</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -379,7 +277,6 @@ const styles = StyleSheet.create({
   linkVerProductos: { fontSize: 12, color: COLORS.primary, fontWeight: '600', marginTop: 6 },
   linkPegarPedido: { fontSize: 12, color: COLORS.success, fontWeight: '600', marginTop: 6 },
   label: { fontSize: 11, color: COLORS.textSecondary, marginTop: 10, marginBottom: 4 },
-  subLabel: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '700', marginTop: 12, marginBottom: 6, textTransform: 'uppercase' },
   tocable: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
   avisoTexto: { fontSize: 10, color: COLORS.textSecondary, marginTop: 8 },
   linkTexto: { fontSize: 11, color: COLORS.primary, fontWeight: '600', textDecorationLine: 'underline' },
@@ -401,14 +298,4 @@ const styles = StyleSheet.create({
   vacio: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 8, marginBottom: 8, fontSize: 12 },
   boton: { marginTop: 10, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonTexto: { color: COLORS.white, fontWeight: '600' },
-  panelAgregar: { marginTop: 10 },
-  itemPicker: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, padding: 12, borderRadius: RADIUS.md, marginBottom: 6, borderWidth: 1, borderColor: COLORS.border },
-  itemPickerActivo: { backgroundColor: COLORS.successBg, borderColor: COLORS.primary },
-  check: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  checkActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  checkTexto: { color: COLORS.white, fontSize: 12, fontWeight: '700' },
-  filaBotonesFinal: { marginTop: 10 },
-  botonGuardarSeleccion: { height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  botonCancelar: { marginTop: 8, height: 44, alignItems: 'center', justifyContent: 'center' },
-  botonCancelarTexto: { color: COLORS.textSecondary, fontSize: 13 },
 });
