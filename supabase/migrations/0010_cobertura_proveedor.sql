@@ -149,7 +149,11 @@ returns table (
 language plpgsql
 stable
 security definer
-set search_path = public
+-- 'extensions', no solo 'public': en Supabase cube/earthdistance instalan
+-- ll_to_earth/earth_distance en el esquema `extensions`, no en `public`. Sin
+-- esto la función compila pero falla en tiempo de ejecución con
+-- "function ll_to_earth(...) does not exist" (42883).
+set search_path = public, extensions
 as $$
 declare
   v_lat double precision;
