@@ -186,20 +186,24 @@ begin
     from v_cobertura_proveedor v
   ),
   propios_confianza as (
+    -- Alias p.* obligatorio: proveedor_id/num_comercios/distancia_km coinciden
+    -- con nombres de columnas de RETURNS TABLE (= variables PL/pgSQL visibles
+    -- en toda la función). Sin calificar, Postgres no puede distinguir la
+    -- variable de la columna y falla con 42702 "ambiguous".
     select
-      proveedor_id,
-      num_comercios,
-      distancia_km,
-      least(1.0, num_comercios / p_saturacion_comercios) * decay *
+      p.proveedor_id,
+      p.num_comercios,
+      p.distancia_km,
+      least(1.0, p.num_comercios / p_saturacion_comercios) * p.decay *
       case
-        when distancia_km is null then 0.5  -- comercio consultante sin GPS: castigo moderado, no cero
-        when distancia_km <= radio_km then 1.0
-        when distancia_km <= radio_km * p_factor_radio_max
-          then 1.0 - (distancia_km - radio_km) / greatest(radio_km, 0.1)
+        when p.distancia_km is null then 0.5  -- comercio consultante sin GPS: castigo moderado, no cero
+        when p.distancia_km <= p.radio_km then 1.0
+        when p.distancia_km <= p.radio_km * p_factor_radio_max
+          then 1.0 - (p.distancia_km - p.radio_km) / greatest(p.radio_km, 0.1)
         else 0.0
       end as confianza,
       'propio'::text as fuente
-    from propios
+    from propios p
   ),
   heredados as (
     select
@@ -218,12 +222,12 @@ begin
       ), 0) as confianza,
       case when v_barrio is null then 'sin_evidencia' else 'heredado' end as fuente
     from proveedores_maestro pm
-    where pm.id not in (select proveedor_id from propios_confianza)
+    where pm.id not in (select pc2.proveedor_id from propios_confianza pc2)
   ),
   combinado as (
-    select proveedor_id, confianza, distancia_km, num_comercios, fuente from propios_confianza
+    select pc.proveedor_id, pc.confianza, pc.distancia_km, pc.num_comercios, pc.fuente from propios_confianza pc
     union all
-    select proveedor_id, confianza, distancia_km, num_comercios, fuente from heredados
+    select h.proveedor_id, h.confianza, h.distancia_km, h.num_comercios, h.fuente from heredados h
   )
   select
     co.proveedor_id,
