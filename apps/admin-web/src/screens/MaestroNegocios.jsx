@@ -4,28 +4,44 @@ import { listarComercios, actualizarComercio } from '../api';
 // Único lugar donde se edita comercios directo, sin cola de aprobación — el
 // admin es el único que ve esta pantalla. No hay crear/eliminar a mano: los
 // negocios reales nacen solo por el onboarding del tendero (crear_comercio).
+const CAMPOS = [
+  { key: 'nombre', label: 'Nombre' },
+  { key: 'ciudad', label: 'Ciudad' },
+  { key: 'barrio', label: 'Barrio' },
+  { key: 'direccion', label: 'Dirección' },
+  { key: 'telefono', label: 'Teléfono' },
+  { key: 'contacto_nombre', label: 'Contacto' },
+];
+
 function FilaComercio({ item, onGuardado }) {
   const [editando, setEditando] = useState(false);
-  const [nombre, setNombre] = useState(item.nombre || '');
-  const [ciudad, setCiudad] = useState(item.ciudad || '');
-  const [barrio, setBarrio] = useState(item.barrio || '');
-  const [direccion, setDireccion] = useState(item.direccion || '');
-  const [telefono, setTelefono] = useState(item.telefono || '');
-  const [contactoNombre, setContactoNombre] = useState(item.contacto_nombre || '');
+  const [valores, setValores] = useState(() =>
+    Object.fromEntries(CAMPOS.map((c) => [c.key, item[c.key] || '']))
+  );
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+
+  function setCampo(key, valor) {
+    setValores((prev) => ({ ...prev, [key]: valor }));
+  }
+
+  function cancelar() {
+    setValores(Object.fromEntries(CAMPOS.map((c) => [c.key, item[c.key] || ''])));
+    setEditando(false);
+    setError('');
+  }
 
   async function guardar() {
     setError('');
     setGuardando(true);
     try {
       await actualizarComercio(item.id, {
-        nombre: nombre.trim(),
-        ciudad: ciudad.trim() || null,
-        barrio: barrio.trim(),
-        direccion: direccion.trim() || null,
-        telefono: telefono.trim() || null,
-        contacto_nombre: contactoNombre.trim() || null,
+        nombre: valores.nombre.trim(),
+        ciudad: valores.ciudad.trim() || null,
+        barrio: valores.barrio.trim(),
+        direccion: valores.direccion.trim() || null,
+        telefono: valores.telefono.trim() || null,
+        contacto_nombre: valores.contacto_nombre.trim() || null,
       });
       setEditando(false);
       await onGuardado();
@@ -36,40 +52,38 @@ function FilaComercio({ item, onGuardado }) {
     }
   }
 
-  const coordenadas = item.lat != null && item.lng != null ? `${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}` : 'Sin GPS';
+  const coordenadas = item.lat != null && item.lng != null ? `${item.lat.toFixed(4)}, ${item.lng.toFixed(4)}` : '—';
 
   return (
-    <li className="tarjeta">
-      <button type="button" className="filaTop" onClick={() => setEditando((v) => !v)}>
-        <div>
-          <strong>{item.nombre}</strong>
-          <p className="sub">{[item.ciudad, item.barrio].filter(Boolean).join(' — ') || 'Sin ciudad/barrio'}</p>
-          <p className="sub">
-            {item.telefono || 'Sin teléfono'}
-            {item.contacto_nombre ? ` · ${item.contacto_nombre}` : ''}
-          </p>
-        </div>
-        <span className="fecha">{coordenadas}</span>
-      </button>
-      {editando && (
-        <div className="panel">
-          {error && <p className="error">{error}</p>}
-          <input placeholder="Nombre del negocio" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          <input placeholder="Ciudad" value={ciudad} onChange={(e) => setCiudad(e.target.value)} />
-          <input placeholder="Barrio" value={barrio} onChange={(e) => setBarrio(e.target.value)} />
-          <input placeholder="Dirección" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
-          <input placeholder="Teléfono de contacto" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
-          <input
-            placeholder="Nombre de quien atiende"
-            value={contactoNombre}
-            onChange={(e) => setContactoNombre(e.target.value)}
-          />
-          <button type="button" className="aprobar" disabled={guardando} onClick={guardar}>
-            {guardando ? 'Guardando...' : 'Guardar cambios'}
+    <tr>
+      {CAMPOS.map((c) => (
+        <td key={c.key}>
+          {editando ? (
+            <input value={valores[c.key]} onChange={(e) => setCampo(c.key, e.target.value)} />
+          ) : (
+            item[c.key] || <span style={{ color: 'var(--text-muted)' }}>—</span>
+          )}
+        </td>
+      ))}
+      <td className="mono">{coordenadas}</td>
+      <td className="acciones-cell">
+        {error && <span className="error">{error}</span>}
+        {editando ? (
+          <>
+            <button type="button" className="gridBoton" disabled={guardando} onClick={guardar}>
+              {guardando ? '...' : 'Guardar'}
+            </button>
+            <button type="button" className="gridBoton secundario" disabled={guardando} onClick={cancelar}>
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <button type="button" className="gridBoton secundario" onClick={() => setEditando(true)}>
+            Editar
           </button>
-        </div>
-      )}
-    </li>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -107,19 +121,32 @@ export default function MaestroNegocios() {
   return (
     <div>
       <input
+        className="buscadorGrid"
         placeholder="Buscar por nombre, ciudad, barrio, teléfono..."
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
-        style={{ marginBottom: 14, width: '100%' }}
       />
       {filtrados.length === 0 ? (
         <p className="vacio">No hay negocios que coincidan.</p>
       ) : (
-        <ul className="lista">
-          {filtrados.map((item) => (
-            <FilaComercio key={item.id} item={item} onGuardado={cargar} />
-          ))}
-        </ul>
+        <div className="gridWrap">
+          <table className="grid">
+            <thead>
+              <tr>
+                {CAMPOS.map((c) => (
+                  <th key={c.key}>{c.label}</th>
+                ))}
+                <th>GPS</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtrados.map((item) => (
+                <FilaComercio key={item.id} item={item} onGuardado={cargar} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

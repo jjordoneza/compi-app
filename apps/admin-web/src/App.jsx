@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './screens/Login';
+import Dashboard from './screens/Dashboard';
 import ProveedoresNuevos from './screens/ProveedoresNuevos';
 import ProductosNuevos from './screens/ProductosNuevos';
 import CambiosPendientes from './screens/CambiosPendientes';
@@ -8,10 +9,20 @@ import MaestroNegocios from './screens/MaestroNegocios';
 import MaestroProductos from './screens/MaestroProductos';
 import PedidosOperacion from './screens/PedidosOperacion';
 
+const NAV = [
+  { id: 'dashboard', label: 'Dashboard', Componente: Dashboard },
+  { id: 'proveedores', label: 'Proveedores nuevos', Componente: ProveedoresNuevos },
+  { id: 'productos', label: 'Productos nuevos', Componente: ProductosNuevos },
+  { id: 'cambios', label: 'Cambios pendientes', Componente: CambiosPendientes },
+  { id: 'negocios', label: 'Maestro negocios', Componente: MaestroNegocios },
+  { id: 'maestroProductos', label: 'Maestro de productos', Componente: MaestroProductos },
+  { id: 'pedidos', label: 'Pedidos', Componente: PedidosOperacion },
+];
+
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando, null = sin sesión
   const [esAdmin, setEsAdmin] = useState(null);
-  const [tab, setTab] = useState('proveedores');
+  const [tab, setTab] = useState('dashboard');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -42,41 +53,35 @@ export default function App() {
     );
   }
 
+  const activo = NAV.find((n) => n.id === tab) || NAV[0];
+  const Componente = activo.Componente;
+
   return (
-    <div className="app">
-      <header className="topbar">
-        <h1>Compi admin</h1>
-        <button type="button" onClick={() => supabase.auth.signOut()}>
-          Cerrar sesión
-        </button>
-      </header>
-      <nav className="tabs">
-        <button type="button" className={tab === 'proveedores' ? 'activo' : ''} onClick={() => setTab('proveedores')}>
-          Proveedores nuevos
-        </button>
-        <button type="button" className={tab === 'productos' ? 'activo' : ''} onClick={() => setTab('productos')}>
-          Productos nuevos
-        </button>
-        <button type="button" className={tab === 'cambios' ? 'activo' : ''} onClick={() => setTab('cambios')}>
-          Cambios pendientes
-        </button>
-        <button type="button" className={tab === 'negocios' ? 'activo' : ''} onClick={() => setTab('negocios')}>
-          Maestro negocios
-        </button>
-        <button type="button" className={tab === 'maestroProductos' ? 'activo' : ''} onClick={() => setTab('maestroProductos')}>
-          Maestro de productos
-        </button>
-        <button type="button" className={tab === 'pedidos' ? 'activo' : ''} onClick={() => setTab('pedidos')}>
-          Pedidos
-        </button>
-      </nav>
-      <main>
-        {tab === 'proveedores' && <ProveedoresNuevos />}
-        {tab === 'productos' && <ProductosNuevos />}
-        {tab === 'cambios' && <CambiosPendientes />}
-        {tab === 'negocios' && <MaestroNegocios />}
-        {tab === 'maestroProductos' && <MaestroProductos />}
-        {tab === 'pedidos' && <PedidosOperacion />}
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-dot" />
+          <h1>Compi admin</h1>
+        </div>
+        {NAV.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`navlink ${tab === item.id ? 'activo' : ''}`}
+            onClick={() => setTab(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+        <div className="sidebar-footer">
+          <button type="button" onClick={() => supabase.auth.signOut()}>
+            Cerrar sesión
+          </button>
+        </div>
+      </aside>
+      <main className="main">
+        <h2 className="pageTitulo">{activo.label}</h2>
+        <Componente />
       </main>
     </div>
   );
