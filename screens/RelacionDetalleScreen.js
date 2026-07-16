@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Switch, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt } from '../supabase';
@@ -9,7 +9,27 @@ function limpiarNumero(texto) {
   return soloDigitos ? parseInt(soloDigitos, 10) : null;
 }
 
-export default function RelacionDetalleScreen({ route }) {
+// Memoizado: al marcar una casilla, solo esta fila debe re-renderizar, no las
+// ~cientos del catálogo compartido completo. Depende de que el padre le pase
+// `onToggle` con identidad estable (useCallback) — si no, el memo no sirve de nada.
+const FilaPicker = memo(function FilaPicker({ producto, activo, onToggle }) {
+  return (
+    <TouchableOpacity
+      style={[styles.itemPicker, activo && styles.itemPickerActivo]}
+      onPress={() => onToggle(producto.id)}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={styles.itemNombre}>{producto.nombre}</Text>
+        <Text style={styles.itemSub}>{producto.presentacion}</Text>
+      </View>
+      <View style={[styles.check, activo && styles.checkActivo]}>
+        {activo && <Text style={styles.checkTexto}>✓</Text>}
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+export default function RelacionDetalleScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { relacionId, proveedorNombre } = route.params;
   const [productosRelacion, setProductosRelacion] = useState([]);
@@ -60,7 +80,13 @@ export default function RelacionDetalleScreen({ route }) {
     }
   }
 
-  useEffect(() => { cargarInicial(); }, []);
+  useEffect(() => {
+    // "focus", no solo mount: precios/productos editados desde otra sesión (o
+    // vía Catálogo Maestro) deben verse al volver a esta pantalla sin remontar.
+    const unsubscribe = navigation.addListener('focus', cargarInicial);
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation]);
 
   async function guardarDatosContacto() {
     try {
@@ -128,11 +154,11 @@ export default function RelacionDetalleScreen({ route }) {
     }
   }
 
-  function toggleSeleccionado(productoId) {
+  const toggleSeleccionado = useCallback((productoId) => {
     setSeleccionados((prev) =>
       prev.includes(productoId) ? prev.filter((id) => id !== productoId) : [...prev, productoId]
     );
-  }
+  }, []);
 
   // Agrega todos los productos marcados de una vez, sin precio (se pone después,
   // individualmente, con "Poner precio" en la lista principal — no bloquea el alta).
@@ -199,11 +225,15 @@ export default function RelacionDetalleScreen({ route }) {
     }
   }
 
-  const idsYaAgregados = productosRelacion.map((pr) => pr.producto_id);
-  const disponibles = productosMaestro
-    .filter((p) => !idsYaAgregados.includes(p.id))
-    .filter((p) => p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  // No depende de `seleccionados` a propósito: marcar/desmarcar una casilla no
+  // debería recalcular el filtro+orden del catálogo completo en cada toque.
+  const disponibles = useMemo(() => {
+    const idsYaAgregados = productosRelacion.map((pr) => pr.producto_id);
+    return productosMaestro
+      .filter((p) => !idsYaAgregados.includes(p.id))
+      .filter((p) => p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, [productosRelacion, productosMaestro, busquedaProducto]);
 
   const conPrecio = productosRelacion.filter((p) => p.precio_pactado != null).length;
 
@@ -353,24 +383,14 @@ export default function RelacionDetalleScreen({ route }) {
               value={busquedaProducto}
               onChangeText={setBusquedaProducto}
             />
-            {disponibles.map((producto) => {
-              const activo = seleccionados.includes(producto.id);
-              return (
-                <TouchableOpacity
-                  key={producto.id}
-                  style={[styles.itemPicker, activo && styles.itemPickerActivo]}
-                  onPress={() => toggleSeleccionado(producto.id)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemNombre}>{producto.nombre}</Text>
-                    <Text style={styles.itemSub}>{producto.presentacion}</Text>
-                  </View>
-                  <View style={[styles.check, activo && styles.checkActivo]}>
-                    {activo && <Text style={styles.checkTexto}>✓</Text>}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            {disponibles.map((producto) => (
+              <FilaPicker
+                key={producto.id}
+                producto={producto}
+                activo={seleccionados.includes(producto.id)}
+                onToggle={toggleSeleccionado}
+              />
+            ))}
             {disponibles.length === 0 && <Text style={styles.vacio}>No hay productos que coincidan</Text>}
 
             <TouchableOpacity
