@@ -1,5 +1,16 @@
 import { supabase } from './supabaseClient';
 
+export async function listarComercios() {
+  const { data, error } = await supabase.from('comercios').select('*').order('nombre', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function actualizarComercio(id, cambios) {
+  const { error } = await supabase.from('comercios').update(cambios).eq('id', id);
+  if (error) throw error;
+}
+
 export async function listarProveedoresPendientes() {
   const { data, error } = await supabase
     .from('proveedores_sugeridos')

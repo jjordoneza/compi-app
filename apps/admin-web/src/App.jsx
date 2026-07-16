@@ -4,6 +4,7 @@ import Login from './screens/Login';
 import ProveedoresNuevos from './screens/ProveedoresNuevos';
 import ProductosNuevos from './screens/ProductosNuevos';
 import CambiosPendientes from './screens/CambiosPendientes';
+import MaestroNegocios from './screens/MaestroNegocios';
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando, null = sin sesión
@@ -57,11 +58,15 @@ export default function App() {
         <button type="button" className={tab === 'cambios' ? 'activo' : ''} onClick={() => setTab('cambios')}>
           Cambios pendientes
         </button>
+        <button type="button" className={tab === 'negocios' ? 'activo' : ''} onClick={() => setTab('negocios')}>
+          Maestro negocios
+        </button>
       </nav>
       <main>
         {tab === 'proveedores' && <ProveedoresNuevos />}
         {tab === 'productos' && <ProductosNuevos />}
         {tab === 'cambios' && <CambiosPendientes />}
+        {tab === 'negocios' && <MaestroNegocios />}
       </main>
     </div>
   );
