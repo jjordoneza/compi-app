@@ -205,12 +205,12 @@ begin
       coalesce((
         select avg(pc.confianza) * p_descuento_heredado
         from propios_confianza pc
-        join proveedores_maestro similar on similar.id = pc.proveedor_id
-        join relaciones r2 on r2.proveedor_id = similar.id and r2.activo
+        join proveedores_maestro otro_prov on otro_prov.id = pc.proveedor_id
+        join relaciones r2 on r2.proveedor_id = otro_prov.id and r2.activo
         join comercios c2 on c2.id = r2.comercio_id
         where v_barrio is not null
           and c2.barrio = v_barrio
-          and string_to_array(similar.categoria, ', ') && string_to_array(pm.categoria, ', ')
+          and string_to_array(otro_prov.categoria, ', ') && string_to_array(pm.categoria, ', ')
       ), 0) as confianza,
       case when v_barrio is null then 'sin_evidencia' else 'heredado' end as fuente
     from proveedores_maestro pm
