@@ -66,7 +66,7 @@ export const MisComercios = {
 
 // RPCs de Fase 1 (crean/ligan comercios al usuario autenticado).
 export const Cuenta = {
-  crearComercio: (nombre, barrio, telefono, proveedoresTotales, direccion, detalles) =>
+  crearComercio: (nombre, barrio, telefono, proveedoresTotales, direccion, detalles, ciudad, contactoNombre) =>
     fetch(`${SUPABASE_URL}/rest/v1/rpc/crear_comercio`, {
       method: 'POST',
       headers: HEADERS,
@@ -77,6 +77,8 @@ export const Cuenta = {
         p_proveedores_totales: proveedoresTotales,
         p_direccion: direccion || null,
         p_detalles: detalles || null,
+        p_ciudad: ciudad || null,
+        p_contacto_nombre: contactoNombre || null,
       }),
     }).then(manejar),
   reclamarComercios: () =>
