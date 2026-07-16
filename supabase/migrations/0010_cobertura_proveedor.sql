@@ -172,8 +172,12 @@ begin
       v.proveedor_id,
       v.num_comercios,
       v.radio_km,
+      -- earth_distance/power devuelven double precision; se castea a numeric
+      -- aquí porque distancia_km es columna de salida (RETURNS TABLE numeric)
+      -- y Postgres no la castea solo — "structure of query does not match
+      -- function result type" (42804) si se deja como double precision.
       case when v_lat is null or v_lng is null then null
-        else earth_distance(ll_to_earth(v.centro_lat, v.centro_lng), ll_to_earth(v_lat, v_lng)) / 1000.0
+        else (earth_distance(ll_to_earth(v.centro_lat, v.centro_lng), ll_to_earth(v_lat, v_lng)) / 1000.0)::numeric
       end as distancia_km,
       -- Decaimiento exponencial por vida media: simple de razonar ("cada N
       -- días sin actividad, la confianza se reduce a la mitad"), nunca llega
@@ -182,7 +186,7 @@ begin
       power(
         0.5,
         extract(epoch from (now() - (v.ultima_actividad at time zone 'UTC'))) / 86400.0 / p_vida_media_dias
-      ) as decay
+      )::numeric as decay
     from v_cobertura_proveedor v
   ),
   propios_confianza as (
