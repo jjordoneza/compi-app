@@ -62,9 +62,6 @@ export default function PerfilScreen({ navigation, route }) {
         <TouchableOpacity style={styles.botonAdmin} onPress={() => navigation.navigate('PedidosAdmin')}>
           <Text style={styles.botonAdminTexto}>Pedidos de todos los negocios</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.botonAdmin, { marginTop: 8 }]} onPress={() => navigation.navigate('SugerenciasCambio')}>
-          <Text style={styles.botonAdminTexto}>Sugerencias de cambio</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );

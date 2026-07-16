@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient';
 import Login from './screens/Login';
 import ProveedoresNuevos from './screens/ProveedoresNuevos';
 import ProductosNuevos from './screens/ProductosNuevos';
+import CambiosPendientes from './screens/CambiosPendientes';
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando, null = sin sesión
@@ -53,8 +54,15 @@ export default function App() {
         <button type="button" className={tab === 'productos' ? 'activo' : ''} onClick={() => setTab('productos')}>
           Productos nuevos
         </button>
+        <button type="button" className={tab === 'cambios' ? 'activo' : ''} onClick={() => setTab('cambios')}>
+          Cambios pendientes
+        </button>
       </nav>
-      <main>{tab === 'proveedores' ? <ProveedoresNuevos /> : <ProductosNuevos />}</main>
+      <main>
+        {tab === 'proveedores' && <ProveedoresNuevos />}
+        {tab === 'productos' && <ProductosNuevos />}
+        {tab === 'cambios' && <CambiosPendientes />}
+      </main>
     </div>
   );
 }

@@ -160,6 +160,13 @@ button:disabled {
   margin: 0;
 }
 
+.subtitulo {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 10px;
+}
+
 .vacio {
   color: #6b7280;
   text-align: center;
