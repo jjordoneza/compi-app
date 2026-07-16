@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ComerciosExt, SugerenciasCambioComercioExt } from '../../supabase';
 import { usuarioActual } from '../../auth';
 import { useComercioActual } from '../../comercioActual';
@@ -10,6 +11,7 @@ import { COLORS, RADIUS } from '../../theme';
 // Esta pantalla solo lee y edita el comercioId del tendero logueado.
 export default function MiNegocioTenderoScreen({ route, navigation }) {
   const { comercioId } = route.params;
+  const insets = useSafeAreaInsets();
   const { setComercioActual } = useComercioActual();
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -106,7 +108,7 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
         <Text style={styles.titulo}>Editar mi negocio</Text>
         <Text style={styles.subtitulo}>Estos datos son solo tuyos, ajústalos cuando quieras.</Text>
 
