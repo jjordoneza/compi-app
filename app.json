@@ -32,6 +32,12 @@
         {
           "contactsPermission": "Compi usa tus contactos para ayudarte a marcar cuáles son tus proveedores. No los compartimos ni los usamos para nada más."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Compi usa tu ubicación al crear tu negocio para ayudarte a encontrar proveedores que sí cubren tu zona. No se te muestra ni se comparte con nadie."
+        }
       ]
     ],
     "runtimeVersion": {
