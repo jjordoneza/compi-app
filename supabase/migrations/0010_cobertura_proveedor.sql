@@ -171,7 +171,11 @@ begin
     select
       v.proveedor_id,
       v.num_comercios,
-      v.radio_km,
+      -- v_cobertura_proveedor.radio_km también sale double precision de la
+      -- vista (percentile_cont sobre earth_distance). Si no se castea aquí,
+      -- se cuela en el case de confianza (resta/división contra radio_km) y
+      -- vuelve a romper el 42804 aunque distancia_km/decay ya estén en numeric.
+      v.radio_km::numeric as radio_km,
       -- earth_distance/power devuelven double precision; se castea a numeric
       -- aquí porque distancia_km es columna de salida (RETURNS TABLE numeric)
       -- y Postgres no la castea solo — "structure of query does not match
