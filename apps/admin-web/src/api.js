@@ -87,7 +87,7 @@ export async function listarCambiosProveedorPendientes() {
 export async function listarCambiosComercioPendientes() {
   const { data, error } = await supabase
     .from('sugerencias_cambio_comercio')
-    .select('*, comercios(nombre, barrio, telefono, contacto_nombre)')
+    .select('*, comercios(nombre, barrio, telefono)')
     .eq('estado', 'pendiente')
     .order('created_at', { ascending: true });
   if (error) throw error;

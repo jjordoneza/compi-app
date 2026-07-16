@@ -14,16 +14,16 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [nombre, setNombre] = useState('');
+  const [ciudad, setCiudad] = useState('');
   const [barrio, setBarrio] = useState('');
   const [direccion, setDireccion] = useState('');
   const [detalles, setDetalles] = useState('');
-  // Teléfono y nombre de contacto no se guardan directo — pasan por
-  // aprobación admin (sugerencias_cambio_comercio). El resto sí es
-  // autoservicio, igual que siempre.
-  const [telefono, setTelefono] = useState('');
   const [contactoNombre, setContactoNombre] = useState('');
+  // Solo el teléfono de contacto pasa por aprobación admin
+  // (sugerencias_cambio_comercio) — el resto, incluido nombre de quien
+  // atiende, es autoservicio directo.
+  const [telefono, setTelefono] = useState('');
   const [telefonoOriginal, setTelefonoOriginal] = useState('');
-  const [contactoNombreOriginal, setContactoNombreOriginal] = useState('');
   const [pendiente, setPendiente] = useState(null);
 
   useEffect(() => { cargar(); }, []);
@@ -38,13 +38,13 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
       const comercio = filas?.[0];
       if (comercio) {
         setNombre(comercio.nombre || '');
+        setCiudad(comercio.ciudad || '');
         setBarrio(comercio.barrio || '');
         setDireccion(comercio.direccion || '');
         setDetalles(comercio.detalles || '');
-        setTelefono(comercio.telefono || '');
         setContactoNombre(comercio.contacto_nombre || '');
+        setTelefono(comercio.telefono || '');
         setTelefonoOriginal(comercio.telefono || '');
-        setContactoNombreOriginal(comercio.contacto_nombre || '');
       }
       setPendiente(pendientes?.[0] || null);
     } catch (e) {
@@ -60,19 +60,19 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
     try {
       await ComerciosExt.actualizar(comercioId, {
         nombre: nombre.trim(),
+        ciudad: ciudad.trim() || null,
         barrio: barrio.trim(),
         direccion: direccion.trim() || null,
         detalles: detalles.trim() || null,
+        contacto_nombre: contactoNombre.trim() || null,
       });
 
       const telefonoCambio = telefono.trim() !== (telefonoOriginal || '');
-      const contactoCambio = contactoNombre.trim() !== (contactoNombreOriginal || '');
-      if (telefonoCambio || contactoCambio) {
+      if (telefonoCambio) {
         await SugerenciasCambioComercioExt.crear({
           comercio_id: comercioId,
           sugerido_por: usuarioActual()?.id || null,
-          telefono_sugerido: telefonoCambio ? telefono.trim() : null,
-          contacto_nombre_sugerido: contactoCambio ? contactoNombre.trim() : null,
+          telefono_sugerido: telefono.trim(),
         });
       }
 
@@ -80,10 +80,10 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
       // nuevo sin necesidad de que esas tabs vuelvan a tener foco.
       setComercioActual({ comercioNombre: nombre.trim() });
 
-      if (telefonoCambio || contactoCambio) {
+      if (telefonoCambio) {
         Alert.alert(
           'Guardado',
-          'Tus datos se actualizaron. El cambio de teléfono/nombre de contacto quedó enviado a revisión.',
+          'Tus datos se actualizaron. El cambio de teléfono de contacto quedó enviado a revisión.',
           [{ text: 'Entendido', onPress: () => navigation.navigate('Home', { screen: 'PerfilTab', params: { comercioId, comercioNombre: nombre.trim() } }) }]
         );
       } else {
@@ -113,6 +113,9 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
         <Text style={styles.label}>Nombre del negocio</Text>
         <TextInput style={styles.input} placeholder="Ej. Tienda Juan" value={nombre} onChangeText={setNombre} />
 
+        <Text style={styles.label}>Ciudad</Text>
+        <TextInput style={styles.input} placeholder="Ej. Bogotá" value={ciudad} onChangeText={setCiudad} />
+
         <Text style={styles.label}>Barrio</Text>
         <TextInput style={styles.input} placeholder="Ej. La América" value={barrio} onChangeText={setBarrio} />
 
@@ -127,6 +130,14 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
           onChangeText={setDetalles}
         />
 
+        <Text style={styles.label}>Nombre de quien atiende</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej. Juan Pérez"
+          value={contactoNombre}
+          onChangeText={setContactoNombre}
+        />
+
         <Text style={styles.label}>Teléfono de contacto</Text>
         <TextInput
           style={styles.input}
@@ -136,19 +147,9 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
           keyboardType="phone-pad"
         />
 
-        <Text style={styles.label}>Nombre de quien atiende</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej. Juan Pérez"
-          value={contactoNombre}
-          onChangeText={setContactoNombre}
-        />
-
         {pendiente && (
           <Text style={styles.aviso}>
-            Ya tienes un cambio de contacto en revisión
-            {pendiente.telefono_sugerido ? ` (teléfono: ${pendiente.telefono_sugerido})` : ''}
-            {pendiente.contacto_nombre_sugerido ? ` (nombre: ${pendiente.contacto_nombre_sugerido})` : ''}.
+            Ya tienes un cambio de teléfono en revisión ({pendiente.telefono_sugerido}).
           </Text>
         )}
 

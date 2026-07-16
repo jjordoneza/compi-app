@@ -121,7 +121,7 @@ export default function CambiosPendientes() {
         </ul>
       )}
 
-      <h2 className="subtitulo" style={{ marginTop: 24 }}>Cambio de contacto de negocio</h2>
+      <h2 className="subtitulo" style={{ marginTop: 24 }}>Cambio de teléfono de negocio</h2>
       {cambiosComercio.length === 0 ? (
         <p className="vacio">No hay cambios de negocio pendientes.</p>
       ) : (
@@ -132,13 +132,8 @@ export default function CambiosPendientes() {
               item={item}
               titulo={item.comercios?.nombre || 'Negocio'}
               lineas={[
-                item.telefono_sugerido
-                  ? `Teléfono actual: ${item.comercios?.telefono || 'sin definir'} → sugerido: ${item.telefono_sugerido}`
-                  : null,
-                item.contacto_nombre_sugerido
-                  ? `Nombre de contacto actual: ${item.comercios?.contacto_nombre || 'sin definir'} → sugerido: ${item.contacto_nombre_sugerido}`
-                  : null,
-              ].filter(Boolean)}
+                `Teléfono actual: ${item.comercios?.telefono || 'sin definir'} → sugerido: ${item.telefono_sugerido}`,
+              ]}
               onAprobar={async () => {
                 await aprobarCambioComercio(item.id);
                 await cargar();
