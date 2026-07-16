@@ -25,9 +25,11 @@ async function capturarUbicacion(comercioId) {
 export default function RegistroNegocioScreen({ route, navigation }) {
   const { telefono } = route.params;
   const [nombre, setNombre] = useState('');
+  const [ciudad, setCiudad] = useState('');
   const [barrio, setBarrio] = useState('');
   const [direccion, setDireccion] = useState('');
   const [detalles, setDetalles] = useState('');
+  const [contactoNombre, setContactoNombre] = useState('');
   const [proveedoresTotales, setProveedoresTotales] = useState(5);
   const [guardando, setGuardando] = useState(false);
 
@@ -46,7 +48,9 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         telefono || null,
         proveedoresTotales,
         direccion.trim() || null,
-        detalles.trim() || null
+        detalles.trim() || null,
+        ciudad.trim() || null,
+        contactoNombre.trim() || null
       );
       const comercio = Array.isArray(creado) ? creado[0] : creado;
       capturarUbicacion(comercio.id); // sin await: no debe demorar la navegación
@@ -67,6 +71,9 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         <Text style={styles.label}>Nombre del negocio</Text>
         <TextInput style={styles.input} placeholder="Ej. Tienda Juan" value={nombre} onChangeText={setNombre} />
 
+        <Text style={styles.label}>Ciudad</Text>
+        <TextInput style={styles.input} placeholder="Ej. Bogotá" value={ciudad} onChangeText={setCiudad} />
+
         <Text style={styles.label}>Barrio</Text>
         <TextInput style={styles.input} placeholder="Ej. La América" value={barrio} onChangeText={setBarrio} />
 
@@ -79,6 +86,14 @@ export default function RegistroNegocioScreen({ route, navigation }) {
           placeholder="Ej. Apto 302, Torre B, Urb. Los Robles"
           value={detalles}
           onChangeText={setDetalles}
+        />
+
+        <Text style={styles.label}>Nombre de quien atiende (opcional)</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej. Juan Pérez"
+          value={contactoNombre}
+          onChangeText={setContactoNombre}
         />
 
         <View style={styles.card}>
