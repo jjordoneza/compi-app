@@ -1,5 +1,91 @@
 import { supabase } from './supabaseClient';
 
+export async function listarComercios() {
+  const { data, error } = await supabase.from('comercios').select('*').order('nombre', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function actualizarComercio(id, cambios) {
+  const { error } = await supabase.from('comercios').update(cambios).eq('id', id);
+  if (error) throw error;
+}
+
+export async function listarProveedoresMaestro() {
+  const { data, error } = await supabase.from('proveedores_maestro').select('*').order('nombre', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function crearProveedorMaestro(payload) {
+  const { error } = await supabase.from('proveedores_maestro').insert(payload);
+  if (error) throw error;
+}
+
+export async function actualizarProveedorMaestro(id, payload) {
+  const { error } = await supabase.from('proveedores_maestro').update(payload).eq('id', id);
+  if (error) throw error;
+}
+
+export async function listarProductosMaestro() {
+  const { data, error } = await supabase.from('productos_maestro').select('*').order('nombre', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function crearProductoMaestro(payload) {
+  const { error } = await supabase.from('productos_maestro').insert(payload);
+  if (error) throw error;
+}
+
+export async function actualizarProductoMaestro(id, payload) {
+  const { error } = await supabase.from('productos_maestro').update(payload).eq('id', id);
+  if (error) throw error;
+}
+
+export async function listarAbastecimientosTodos() {
+  const { data, error } = await supabase
+    .from('abastecimientos')
+    .select('*, comercios(nombre)')
+    .order('fecha', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function listarRelacionesTodas() {
+  const { data, error } = await supabase.from('relaciones').select('*');
+  if (error) throw error;
+  return data;
+}
+
+export async function listarProductosRelacionTodos() {
+  const { data, error } = await supabase.from('productos_relacion').select('*');
+  if (error) throw error;
+  return data;
+}
+
+export async function listarPedidosPorAbastecimiento(abastecimientoId) {
+  const { data, error } = await supabase.from('pedidos').select('*').eq('abastecimiento_id', abastecimientoId);
+  if (error) throw error;
+  return data;
+}
+
+export async function listarPedidoItems(pedidoId) {
+  const { data, error } = await supabase.from('pedido_items').select('*').eq('pedido_id', pedidoId);
+  if (error) throw error;
+  return data;
+}
+
+export async function actualizarEstadoPedido(pedidoId, estado) {
+  const { error } = await supabase.from('pedidos').update({ estado }).eq('id', pedidoId);
+  if (error) throw error;
+}
+
+export async function actualizarEstadoAbastecimiento(abastecimientoId, estado) {
+  const { error } = await supabase.from('abastecimientos').update({ estado }).eq('id', abastecimientoId);
+  if (error) throw error;
+}
+
 export async function listarProveedoresPendientes() {
   const { data, error } = await supabase
     .from('proveedores_sugeridos')
@@ -87,7 +173,7 @@ export async function listarCambiosProveedorPendientes() {
 export async function listarCambiosComercioPendientes() {
   const { data, error } = await supabase
     .from('sugerencias_cambio_comercio')
-    .select('*, comercios(nombre, barrio, telefono, contacto_nombre)')
+    .select('*, comercios(nombre, barrio, telefono)')
     .eq('estado', 'pendiente')
     .order('created_at', { ascending: true });
   if (error) throw error;

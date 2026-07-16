@@ -59,7 +59,7 @@ button:disabled {
 }
 
 .app {
-  max-width: 720px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -85,12 +85,14 @@ button:disabled {
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 16px;
 }
 
 .tabs button {
   flex: 1;
+  min-width: 140px;
   background: #fff;
   color: #6b7280;
   border: 1px solid #d8dbe0;
@@ -197,6 +199,31 @@ button:disabled {
 }
 
 .match.activo {
+  background: #e8f7ee;
+  border-color: #1f9d55;
+  color: #1f9d55;
+  font-weight: 600;
+}
+
+.chipsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.chip {
+  height: auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #fff;
+  color: #6b7280;
+  border: 1px solid #d8dbe0;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chip.chipActivo {
   background: #e8f7ee;
   border-color: #1f9d55;
   color: #1f9d55;
