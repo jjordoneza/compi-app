@@ -6,6 +6,13 @@ const CATEGORIAS = [
   'Panadería', 'Carnes', 'Granos y abarrotes', 'Cigarrería', 'Verduras y frutas',
 ];
 
+const UNIDADES_BASE = [
+  { value: '', label: '—' },
+  { value: 'unidad', label: 'Unidad' },
+  { value: 'kg', label: 'Kg' },
+  { value: 'litro', label: 'Litro' },
+];
+
 function Chips({ opciones, seleccion, onToggle }) {
   return (
     <div className="chipsContainer">
@@ -30,6 +37,7 @@ function FilaProducto({ item, onGuardado }) {
   const [categoria, setCategoria] = useState(item.categoria || null);
   const [unidadEmpaque, setUnidadEmpaque] = useState(item.unidad_empaque || '');
   const [unidadesPorCaja, setUnidadesPorCaja] = useState(item.unidades_por_caja ?? '');
+  const [unidadBase, setUnidadBase] = useState(item.unidad_base || '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -44,6 +52,7 @@ function FilaProducto({ item, onGuardado }) {
         categoria: categoria || '',
         unidad_empaque: unidadEmpaque.trim() || null,
         unidades_por_caja: unidadesPorCaja === '' ? null : Number(unidadesPorCaja),
+        unidad_base: unidadBase || null,
       });
       setEditando(false);
       await onGuardado();
@@ -95,6 +104,15 @@ function FilaProducto({ item, onGuardado }) {
           />
         ) : (
           item.unidades_por_caja ?? <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
+      <td>
+        {editando ? (
+          <select value={unidadBase} onChange={(e) => setUnidadBase(e.target.value)}>
+            {UNIDADES_BASE.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+          </select>
+        ) : (
+          UNIDADES_BASE.find((u) => u.value === item.unidad_base)?.label || <span style={{ color: 'var(--text-muted)' }}>—</span>
         )}
       </td>
       <td className="acciones-cell">
@@ -241,6 +259,7 @@ export default function MaestroProductos() {
                 <th>Categoría</th>
                 <th>Unidad</th>
                 <th>Unid./caja</th>
+                <th>Unidad base</th>
                 <th>Acciones</th>
               </tr>
             </thead>
