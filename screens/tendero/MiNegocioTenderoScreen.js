@@ -6,6 +6,33 @@ import { usuarioActual } from '../../auth';
 import { useComercioActual } from '../../comercioActual';
 import { COLORS, RADIUS } from '../../theme';
 
+const CATEGORIAS = [
+  { value: 'tienda_barrio', label: 'Tienda de barrio' },
+  { value: 'panaderia', label: 'Panadería' },
+  { value: 'licorera', label: 'Licorera' },
+  { value: 'minimarket', label: 'Minimarket' },
+  { value: 'otro', label: 'Otro' },
+];
+
+function ChipSelector({ opciones, valor, onCambiar }) {
+  return (
+    <View style={styles.chipsFila}>
+      {opciones.map((op) => {
+        const activo = valor === op.value;
+        return (
+          <TouchableOpacity
+            key={op.value}
+            style={[styles.chip, activo && styles.chipActivo]}
+            onPress={() => onCambiar(activo ? '' : op.value)}
+          >
+            <Text style={[styles.chipTexto, activo && styles.chipTextoActivo]}>{op.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 // Edición del propio negocio del tendero — distinta de screens/MiNegocioScreen.js
 // (esa es una herramienta de admin que lista/crea/borra TODOS los comercios).
 // Esta pantalla solo lee y edita el comercioId del tendero logueado.
@@ -21,6 +48,7 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   const [direccion, setDireccion] = useState('');
   const [detalles, setDetalles] = useState('');
   const [contactoNombre, setContactoNombre] = useState('');
+  const [categoria, setCategoria] = useState('');
   // Solo el teléfono de contacto pasa por aprobación admin
   // (sugerencias_cambio_comercio) — el resto, incluido nombre de quien
   // atiende, es autoservicio directo.
@@ -45,6 +73,7 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
         setDireccion(comercio.direccion || '');
         setDetalles(comercio.detalles || '');
         setContactoNombre(comercio.contacto_nombre || '');
+        setCategoria(comercio.categoria || '');
         setTelefono(comercio.telefono || '');
         setTelefonoOriginal(comercio.telefono || '');
       }
@@ -67,6 +96,7 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
         direccion: direccion.trim() || null,
         detalles: detalles.trim() || null,
         contacto_nombre: contactoNombre.trim() || null,
+        categoria: categoria || null,
       });
 
       const telefonoCambio = telefono.trim() !== (telefonoOriginal || '');
@@ -140,6 +170,9 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
           onChangeText={setContactoNombre}
         />
 
+        <Text style={styles.label}>Tipo de negocio</Text>
+        <ChipSelector opciones={CATEGORIAS} valor={categoria} onCambiar={setCategoria} />
+
         <Text style={styles.label}>Teléfono de contacto</Text>
         <TextInput
           style={styles.input}
@@ -173,6 +206,11 @@ const styles = StyleSheet.create({
   subtitulo: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4, marginBottom: 16 },
   label: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 6, marginTop: 8 },
   input: { height: 48, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.white, marginBottom: 6 },
+  chipsFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  chip: { paddingHorizontal: 14, height: 48, borderRadius: 24, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
+  chipActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  chipTexto: { fontSize: 13, color: COLORS.text },
+  chipTextoActivo: { color: COLORS.white, fontWeight: '600' },
   aviso: { fontSize: 12, color: COLORS.textSecondary, backgroundColor: COLORS.white, borderRadius: RADIUS.sm, padding: 10, marginTop: 8, lineHeight: 17 },
   boton: { marginTop: 20, height: 50, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonDeshabilitado: { opacity: 0.4 },

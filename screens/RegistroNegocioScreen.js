@@ -4,6 +4,42 @@ import * as Location from 'expo-location';
 import { Cuenta, ComerciosExt } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
 
+const CATEGORIAS = [
+  { value: 'tienda_barrio', label: 'Tienda de barrio' },
+  { value: 'panaderia', label: 'Panadería' },
+  { value: 'licorera', label: 'Licorera' },
+  { value: 'minimarket', label: 'Minimarket' },
+  { value: 'otro', label: 'Otro' },
+];
+
+const CANALES_ADQUISICION = [
+  { value: 'referido', label: 'Un conocido me contó' },
+  { value: 'redes_sociales', label: 'Redes sociales' },
+  { value: 'visita_directa', label: 'Alguien de Compi me visitó' },
+  { value: 'otro', label: 'Otro' },
+];
+
+// Selección única con tap-para-deseleccionar: ambos grupos son opcionales, no
+// se fuerza a elegir nada para continuar.
+function ChipSelector({ opciones, valor, onCambiar }) {
+  return (
+    <View style={styles.chipsFila}>
+      {opciones.map((op) => {
+        const activo = valor === op.value;
+        return (
+          <TouchableOpacity
+            key={op.value}
+            style={[styles.chip, activo && styles.chipActivo]}
+            onPress={() => onCambiar(activo ? '' : op.value)}
+          >
+            <Text style={[styles.chipTexto, activo && styles.chipTextoActivo]}>{op.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 // Sin pantalla propia, nunca bloquea el registro: si el permiso se niega o
 // la captura falla, el comercio simplemente queda sin coordenadas — el motor
 // de cobertura de proveedores ya está diseñado para ese caso (cae a
@@ -30,6 +66,8 @@ export default function RegistroNegocioScreen({ route, navigation }) {
   const [direccion, setDireccion] = useState('');
   const [detalles, setDetalles] = useState('');
   const [contactoNombre, setContactoNombre] = useState('');
+  const [categoria, setCategoria] = useState('');
+  const [canalAdquisicion, setCanalAdquisicion] = useState('');
   const [proveedoresTotales, setProveedoresTotales] = useState(5);
   const [guardando, setGuardando] = useState(false);
 
@@ -53,6 +91,15 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         contactoNombre.trim() || null
       );
       const comercio = Array.isArray(creado) ? creado[0] : creado;
+      // categoria/canal_adquisicion no están en crear_comercio (evita cambiar su
+      // firma por 2 campos opcionales) — se guardan con un PATCH aparte si el
+      // tendero eligió alguno.
+      if (categoria || canalAdquisicion) {
+        await ComerciosExt.actualizar(comercio.id, {
+          categoria: categoria || null,
+          canal_adquisicion: canalAdquisicion || null,
+        });
+      }
       capturarUbicacion(comercio.id); // sin await: no debe demorar la navegación
       navigation.replace('ImportarContactos', { comercioId: comercio.id, comercioNombre: nombre.trim() });
     } catch (e) {
@@ -96,6 +143,12 @@ export default function RegistroNegocioScreen({ route, navigation }) {
           onChangeText={setContactoNombre}
         />
 
+        <Text style={styles.label}>Tipo de negocio (opcional)</Text>
+        <ChipSelector opciones={CATEGORIAS} valor={categoria} onCambiar={setCategoria} />
+
+        <Text style={[styles.label, { marginTop: 4 }]}>¿Cómo llegaste a Compi? (opcional)</Text>
+        <ChipSelector opciones={CANALES_ADQUISICION} valor={canalAdquisicion} onCambiar={setCanalAdquisicion} />
+
         <View style={styles.card}>
           <Text style={styles.cardTitulo}>¿A cuántos proveedores le compras en total?</Text>
           <Text style={styles.cardSubtitulo}>Aunque no todos estén en Compi. Nos ayuda a entender tu negocio.</Text>
@@ -128,6 +181,11 @@ const styles = StyleSheet.create({
   subtitulo: { fontSize: 13, color: COLORS.textSecondary, marginTop: 6, marginBottom: 20, lineHeight: 18 },
   label: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 6 },
   input: { height: 48, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.white, marginBottom: 16 },
+  chipsFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  chip: { paddingHorizontal: 14, height: 48, borderRadius: 24, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
+  chipActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  chipTexto: { fontSize: 13, color: COLORS.text },
+  chipTextoActivo: { color: COLORS.white, fontWeight: '600' },
   card: { backgroundColor: COLORS.successBg, borderRadius: RADIUS.md, padding: 16, marginTop: 6 },
   cardTitulo: { fontSize: 13, fontWeight: '600', color: '#27500A' },
   cardSubtitulo: { fontSize: 11, color: '#3B6D11', marginTop: 4, lineHeight: 15 },

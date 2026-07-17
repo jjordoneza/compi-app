@@ -6,6 +6,12 @@ const CATEGORIAS = [
   'Panadería', 'Carnes', 'Granos y abarrotes', 'Cigarrería', 'Verduras y frutas',
 ];
 
+const NIVELES_SERVICIO = [
+  { value: 'personal', label: 'Personal (WhatsApp)' },
+  { value: 'compi', label: 'Compi (panel)' },
+  { value: 'enterprise', label: 'Enterprise (API)' },
+];
+
 function Chips({ opciones, seleccion, onToggle }) {
   return (
     <div className="chipsContainer">
@@ -28,6 +34,7 @@ function FilaProveedor({ item, onGuardado }) {
   const [categorias, setCategorias] = useState(
     (item.categoria || '').split(',').map((c) => c.trim()).filter(Boolean)
   );
+  const [nivelServicio, setNivelServicio] = useState(item.nivel_servicio || 'personal');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -39,7 +46,11 @@ function FilaProveedor({ item, onGuardado }) {
     setError('');
     setGuardando(true);
     try {
-      await actualizarProveedorMaestro(item.id, { nombre: nombre.trim(), categoria: categorias.join(', ') });
+      await actualizarProveedorMaestro(item.id, {
+        nombre: nombre.trim(),
+        categoria: categorias.join(', '),
+        nivel_servicio: nivelServicio,
+      });
       setEditando(false);
       await onGuardado();
     } catch (e) {
@@ -57,6 +68,17 @@ function FilaProveedor({ item, onGuardado }) {
           <Chips opciones={CATEGORIAS} seleccion={categorias} onToggle={toggle} />
         ) : (
           item.categoria || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
+      <td>
+        {editando ? (
+          <select value={nivelServicio} onChange={(e) => setNivelServicio(e.target.value)}>
+            {NIVELES_SERVICIO.map((n) => (
+              <option key={n.value} value={n.value}>{n.label}</option>
+            ))}
+          </select>
+        ) : (
+          NIVELES_SERVICIO.find((n) => n.value === item.nivel_servicio)?.label || 'Personal (WhatsApp)'
         )}
       </td>
       <td className="acciones-cell">
@@ -162,6 +184,7 @@ export default function MaestroProveedores() {
               <tr>
                 <th>Nombre</th>
                 <th>Categorías</th>
+                <th>Nivel de servicio</th>
                 <th>Acciones</th>
               </tr>
             </thead>
