@@ -24,6 +24,57 @@ export async function obtenerIdcPorComercio() {
   return data || [];
 }
 
+// ── Adopción y retención ────────────────────────────────────────────────
+export async function obtenerComerciosActivosTendencia(granularidad) {
+  const { data, error } = await supabase.rpc('admin_comercios_activos_tendencia', { p_granularidad: granularidad });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function obtenerTiempoAPrimerPedido() {
+  const { data, error } = await supabase.rpc('admin_tiempo_a_primer_pedido');
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+export async function obtenerCohortesRetencion() {
+  const { data, error } = await supabase.rpc('admin_cohortes_retencion');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function obtenerOnboardingAbandono() {
+  const { data, error } = await supabase.rpc('admin_onboarding_abandono');
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+// ── Salud de la red ──────────────────────────────────────────────────────
+export async function obtenerEfectoRed() {
+  const { data, error } = await supabase.rpc('admin_efecto_red');
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+export async function obtenerDensidadPorBarrio() {
+  const { data, error } = await supabase.rpc('admin_densidad_por_barrio');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function obtenerSenalesNegativasPorProveedor() {
+  const { data, error } = await supabase.rpc('admin_senales_negativas_por_proveedor');
+  if (error) throw error;
+  return data || [];
+}
+
+// ── Curaduría ─────────────────────────────────────────────────────────────
+export async function obtenerCuraduriaResolucionTendencia() {
+  const { data, error } = await supabase.rpc('admin_curaduria_resolucion_tendencia');
+  if (error) throw error;
+  return data || [];
+}
+
 export async function listarComercios() {
   const { data, error } = await supabase.from('comercios').select('*').order('nombre', { ascending: true });
   if (error) throw error;
