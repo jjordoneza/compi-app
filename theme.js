@@ -21,3 +21,11 @@ export function formatMoney(valor) {
   if (valor == null) return '';
   return new Intl.NumberFormat('es-CO').format(valor);
 }
+
+// "Caja x24 · $50.000 ($2.083/unidad)" — null si no hay con qué calcularlo
+// (factor_conversion ausente o 1, o sin precio). factor_conversion=1 no
+// genera texto porque presentación y unidad_base ya coinciden 1 a 1.
+export function textoPrecioUnitario(precio, factorConversion) {
+  if (precio == null || !factorConversion || factorConversion <= 1) return null;
+  return `$${formatMoney(Math.round(precio / factorConversion))}/unidad`;
+}

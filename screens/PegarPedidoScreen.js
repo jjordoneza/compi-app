@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
-import { ProductosMaestroExt, ProductosRelacionExt, ProductosSugeridos } from '../supabase';
+import { ProductosRelacionExt, ProductosSugeridos } from '../supabase';
 import { usuarioActual } from '../auth';
 import { extraerProductosDePedido } from '../ai';
 import { COLORS, RADIUS } from '../theme';
@@ -10,6 +10,9 @@ export default function PegarPedidoScreen({ route, navigation }) {
   const [texto, setTexto] = useState('');
   const [procesando, setProcesando] = useState(false);
   const [detectados, setDetectados] = useState(null);
+  // index -> 'si' | 'no', solo para ítems con coincidencia — decide si se
+  // vincula al producto existente o se manda a curaduría como distinto.
+  const [confirmaciones, setConfirmaciones] = useState({});
   const [guardando, setGuardando] = useState(false);
 
   async function convertir() {
@@ -18,12 +21,19 @@ export default function PegarPedidoScreen({ route, navigation }) {
     try {
       const productos = await extraerProductosDePedido(texto.trim());
       setDetectados(productos);
+      setConfirmaciones({});
     } catch (e) {
       Alert.alert('No pudimos leer el pedido', e.message);
     } finally {
       setProcesando(false);
     }
   }
+
+  function confirmarCoincidencia(index, valor) {
+    setConfirmaciones((prev) => ({ ...prev, [index]: valor }));
+  }
+
+  const faltaConfirmar = (detectados || []).some((item, i) => item.coincidencia && !confirmaciones[i]);
 
   function actualizarCantidad(index, delta) {
     setDetectados((prev) =>
@@ -36,22 +46,26 @@ export default function PegarPedidoScreen({ route, navigation }) {
   }
 
   async function confirmarGuardar() {
-    if (!detectados || detectados.length === 0) return;
+    if (!detectados || detectados.length === 0 || faltaConfirmar) return;
     setGuardando(true);
     try {
       const precargaCantidades = {};
       let nuevosCount = 0;
 
-      for (const item of detectados) {
-        // Fase 3: solo un match exacto con el catálogo global se autoservicio
-        // (vincular un producto EXISTENTE a mi relación). Si no existe, ya no lo
-        // creamos directo en productos_maestro — va a la cola de curaduría.
-        const productoMaestro = await ProductosMaestroExt.buscarPorNombreExacto(item.nombre);
-        if (productoMaestro) {
+      for (let i = 0; i < detectados.length; i++) {
+        const item = detectados[i];
+        // "Ya lo tenemos, ¿es este?" confirmado por el tendero: vincula al
+        // producto EXISTENTE, sin curaduría (docs/catalogo-matching-unidades.md).
+        // Sin coincidencia, o el tendero dijo "no, es distinto": va a la cola.
+        const esElMismo = item.coincidencia && confirmaciones[i] === 'si';
+        if (esElMismo) {
           const productoRelacionCreado = await ProductosRelacionExt.crear({
             relacion_id: relacionId,
-            producto_id: productoMaestro.id,
+            producto_id: item.coincidencia.id,
             precio_pactado: null,
+            presentacion: item.presentacion || null,
+            factor_conversion: item.factor_conversion || 1,
+            unidad_pedido: item.unidad_pedido || null,
           });
           precargaCantidades[productoRelacionCreado[0].id] = item.cantidad;
         } else {
@@ -61,7 +75,11 @@ export default function PegarPedidoScreen({ route, navigation }) {
             sugerido_por: usuarioActual()?.id || null,
             nombre: item.nombre,
             presentacion: item.presentacion,
-            categoria: '',
+            categoria: item.categoria || '',
+            marca: item.marca || null,
+            unidad_base: item.unidad_base || null,
+            factor_conversion: item.factor_conversion || null,
+            unidad_pedido: item.unidad_pedido || null,
             estado: 'pendiente',
           });
           nuevosCount++;
@@ -134,29 +152,60 @@ export default function PegarPedidoScreen({ route, navigation }) {
             )}
 
             {detectados.map((item, i) => (
-              <View key={i} style={styles.item}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemNombre}>{item.nombre}</Text>
-                  <Text style={styles.itemSub}>{item.presentacion}</Text>
-                </View>
-                <View style={styles.stepper}>
-                  <TouchableOpacity style={styles.stepperBoton} onPress={() => actualizarCantidad(i, -1)}>
-                    <Text style={styles.stepperTexto}>−</Text>
+              <View key={i} style={styles.itemCard}>
+                <View style={styles.filaItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemNombre}>{item.nombre}</Text>
+                    <Text style={styles.itemSub}>{item.presentacion}</Text>
+                  </View>
+                  <View style={styles.stepper}>
+                    <TouchableOpacity style={styles.stepperBoton} onPress={() => actualizarCantidad(i, -1)}>
+                      <Text style={styles.stepperTexto}>−</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.stepperNumero}>{item.cantidad}</Text>
+                    <TouchableOpacity style={[styles.stepperBoton, styles.stepperBotonMas]} onPress={() => actualizarCantidad(i, 1)}>
+                      <Text style={[styles.stepperTexto, { color: COLORS.white }]}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity onPress={() => quitarProducto(i)} style={{ marginLeft: 10 }}>
+                    <Text style={styles.quitarTexto}>Quitar</Text>
                   </TouchableOpacity>
-                  <Text style={styles.stepperNumero}>{item.cantidad}</Text>
-                  <TouchableOpacity style={[styles.stepperBoton, styles.stepperBotonMas]} onPress={() => actualizarCantidad(i, 1)}>
-                    <Text style={[styles.stepperTexto, { color: COLORS.white }]}>+</Text>
-                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={() => quitarProducto(i)} style={{ marginLeft: 10 }}>
-                  <Text style={styles.quitarTexto}>Quitar</Text>
-                </TouchableOpacity>
+
+                {item.coincidencia && (
+                  <View style={styles.coincidenciaBox}>
+                    <Text style={styles.coincidenciaTexto}>
+                      Ya lo tenemos: {item.coincidencia.nombre}
+                      {item.coincidencia.presentacion ? ` · ${item.coincidencia.presentacion}` : ''} — ¿es este?
+                    </Text>
+                    <View style={styles.coincidenciaBotones}>
+                      <TouchableOpacity
+                        style={[styles.coincidenciaBoton, confirmaciones[i] === 'si' && styles.coincidenciaBotonActivoSi]}
+                        onPress={() => confirmarCoincidencia(i, 'si')}
+                      >
+                        <Text style={[styles.coincidenciaBotonTexto, confirmaciones[i] === 'si' && styles.coincidenciaBotonTextoActivo]}>Sí, es el mismo</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.coincidenciaBoton, confirmaciones[i] === 'no' && styles.coincidenciaBotonActivoNo]}
+                        onPress={() => confirmarCoincidencia(i, 'no')}
+                      >
+                        <Text style={[styles.coincidenciaBotonTexto, confirmaciones[i] === 'no' && styles.coincidenciaBotonTextoActivo]}>No, es distinto</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
             ))}
 
             {detectados.length > 0 && (
-              <TouchableOpacity style={[styles.boton, guardando && { opacity: 0.5 }]} disabled={guardando} onPress={confirmarGuardar}>
-                <Text style={styles.botonTexto}>{guardando ? 'Guardando...' : 'Se ve bien, guardar'}</Text>
+              <TouchableOpacity
+                style={[styles.boton, (guardando || faltaConfirmar) && { opacity: 0.5 }]}
+                disabled={guardando || faltaConfirmar}
+                onPress={confirmarGuardar}
+              >
+                <Text style={styles.botonTexto}>
+                  {guardando ? 'Guardando...' : faltaConfirmar ? 'Confirma las coincidencias de arriba' : 'Se ve bien, guardar'}
+                </Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.botonSecundario} onPress={() => setDetectados(null)}>
@@ -179,7 +228,8 @@ const styles = StyleSheet.create({
   botonSecundario: { marginTop: 10, height: 44, alignItems: 'center', justifyContent: 'center' },
   botonSecundarioTexto: { color: COLORS.textSecondary, fontSize: 13 },
   vacio: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 20 },
-  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, padding: 12, borderRadius: RADIUS.md, marginBottom: 8, borderWidth: 0.5, borderColor: COLORS.borderLight },
+  itemCard: { backgroundColor: COLORS.white, padding: 12, borderRadius: RADIUS.md, marginBottom: 8, borderWidth: 0.5, borderColor: COLORS.borderLight },
+  filaItem: { flexDirection: 'row', alignItems: 'center' },
   itemNombre: { fontSize: 14, fontWeight: '600', color: COLORS.text },
   itemSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -188,4 +238,12 @@ const styles = StyleSheet.create({
   stepperTexto: { fontSize: 16, color: COLORS.primary, fontWeight: '600' },
   stepperNumero: { fontSize: 14, fontWeight: '600', color: COLORS.text, minWidth: 18, textAlign: 'center' },
   quitarTexto: { fontSize: 11, color: COLORS.error, fontWeight: '600' },
+  coincidenciaBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: COLORS.borderLight },
+  coincidenciaTexto: { fontSize: 12, color: COLORS.text, lineHeight: 16 },
+  coincidenciaBotones: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  coincidenciaBoton: { flex: 1, height: 40, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  coincidenciaBotonActivoSi: { backgroundColor: COLORS.success, borderColor: COLORS.success },
+  coincidenciaBotonActivoNo: { backgroundColor: COLORS.textSecondary, borderColor: COLORS.textSecondary },
+  coincidenciaBotonTexto: { fontSize: 12, fontWeight: '600', color: COLORS.text },
+  coincidenciaBotonTextoActivo: { color: COLORS.white },
 });
