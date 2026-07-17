@@ -12,6 +12,18 @@ export async function obtenerAbastecimientosPorDia() {
   return data || [];
 }
 
+export async function obtenerStatsEstrategicos() {
+  const { data, error } = await supabase.rpc('admin_stats_estrategicos');
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+export async function obtenerIdcPorComercio() {
+  const { data, error } = await supabase.rpc('admin_idc_por_comercio');
+  if (error) throw error;
+  return data || [];
+}
+
 export async function listarComercios() {
   const { data, error } = await supabase.from('comercios').select('*').order('nombre', { ascending: true });
   if (error) throw error;
