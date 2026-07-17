@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Abastecimientos, Pedidos, PedidoItems } from '../../supabase';
@@ -8,6 +8,11 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { comercioId, comercioNombre, gruposParaEnviar, totalEstimado } = route.params;
   const [enviando, setEnviando] = useState(false);
+  // Sin transacción real de por medio: si un intento falla a mitad de camino,
+  // guardamos qué abastecimiento y qué proveedores ya quedaron creados para que
+  // reintentar "Enviar" continúe donde quedó, en vez de duplicar lo ya enviado.
+  const abastecimientoIdRef = useRef(null);
+  const enviadosRef = useRef(new Set());
 
   function confirmarEnvio() {
     Alert.alert(
@@ -23,10 +28,15 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
   async function enviar() {
     setEnviando(true);
     try {
-      const abastecimiento = await Abastecimientos.crear({ comercio_id: comercioId, estado: 'procesando' });
-      const abastecimientoId = abastecimiento[0].id;
+      if (!abastecimientoIdRef.current) {
+        const abastecimiento = await Abastecimientos.crear({ comercio_id: comercioId, estado: 'procesando' });
+        abastecimientoIdRef.current = abastecimiento[0].id;
+      }
+      const abastecimientoId = abastecimientoIdRef.current;
 
       for (const grupo of gruposParaEnviar) {
+        if (enviadosRef.current.has(grupo.relacionId)) continue; // ya se guardó en un intento anterior
+
         const pedido = await Pedidos.crear({
           abastecimiento_id: abastecimientoId,
           relacion_id: grupo.relacionId,
@@ -41,6 +51,8 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
             cantidad: item.cantidad,
           });
         }
+
+        enviadosRef.current.add(grupo.relacionId);
       }
 
       // Reset en vez de replace: elimina del historial el formulario de pedido y esta pantalla,
@@ -50,7 +62,13 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
         routes: [{ name: 'PedidoEnviado', params: { comercioId, comercioNombre, abastecimientoId } }],
       });
     } catch (e) {
-      Alert.alert('Error enviando', e.message);
+      const faltan = gruposParaEnviar.length - enviadosRef.current.size;
+      Alert.alert(
+        'Error enviando',
+        faltan < gruposParaEnviar.length
+          ? `${e.message}\n\nTranquilo: lo que ya se envió no se duplica. Toca "Enviar" de nuevo para continuar con los ${faltan} proveedor(es) que faltan.`
+          : e.message
+      );
       setEnviando(false);
     }
   }

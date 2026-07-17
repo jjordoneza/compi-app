@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import * as Contacts from 'expo-contacts';
 import { ProveedoresSugeridos } from '../supabase';
@@ -17,6 +17,9 @@ export default function ImportarContactosScreen({ route, navigation }) {
   const [resultados, setResultados] = useState([]); // [{nombre, esProveedor, categoria}]
   const [seleccionados, setSeleccionados] = useState([]);
   const [guardando, setGuardando] = useState(false);
+  // Guarda qué índices ya se crearon con éxito, para que un reintento tras un
+  // fallo a mitad de camino no vuelva a crear los mismos proveedores.
+  const guardadosRef = useRef(new Set());
 
   useEffect(() => { analizar(); }, []);
 
@@ -72,6 +75,7 @@ export default function ImportarContactosScreen({ route, navigation }) {
       // tiendas, así que necesitan aprobación). El vínculo con este comercio se
       // crea recién cuando se aprueba, no antes.
       for (const i of seleccionados) {
+        if (guardadosRef.current.has(i)) continue; // ya se guardó en un intento anterior
         const contacto = resultados[i];
         await ProveedoresSugeridos.crear({
           comercio_id: comercioId,
@@ -81,6 +85,7 @@ export default function ImportarContactosScreen({ route, navigation }) {
           canal: 'whatsapp',
           estado: 'pendiente',
         });
+        guardadosRef.current.add(i);
       }
       Alert.alert(
         'Enviado a revisión',
@@ -88,7 +93,13 @@ export default function ImportarContactosScreen({ route, navigation }) {
         [{ text: 'Entendido', onPress: () => navigation.replace('Home', { comercioId, comercioNombre }) }]
       );
     } catch (e) {
-      Alert.alert('Error importando', e.message);
+      const faltan = seleccionados.length - guardadosRef.current.size;
+      Alert.alert(
+        'Error importando',
+        faltan < seleccionados.length
+          ? `${e.message}\n\nLo que ya se guardó no se duplica. Toca de nuevo para continuar con los ${faltan} que faltan.`
+          : e.message
+      );
     } finally {
       setGuardando(false);
     }

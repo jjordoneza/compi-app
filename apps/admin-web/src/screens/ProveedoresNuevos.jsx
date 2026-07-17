@@ -9,6 +9,7 @@ export default function ProveedoresNuevos() {
   const [error, setError] = useState('');
 
   async function cargar() {
+    setError('');
     try {
       setItems(await listarProveedoresPendientes());
     } catch (e) {
@@ -35,10 +36,13 @@ export default function ProveedoresNuevos() {
   return (
     <div>
       <CabeceraCuraduria campoEdad="curaduria_edad_pendiente_proveedores_dias" etiqueta="Sugerencia de proveedor" />
-      {items === null ? (
+      {error ? (
+        <div>
+          <p className="error">{error}</p>
+          <button type="button" className="gridBoton" onClick={cargar}>Reintentar</button>
+        </div>
+      ) : items === null ? (
         <p className="ayuda">Cargando...</p>
-      ) : error ? (
-        <p className="error">{error}</p>
       ) : items.length === 0 ? (
         <p className="vacio">No hay proveedores pendientes.</p>
       ) : (

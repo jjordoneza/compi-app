@@ -382,17 +382,17 @@ Reglas exactas (para diseñar los casos de prueba en la siembra, ver parte 2 de 
 
 ---
 
-## F. Hallazgos de código a re-confirmar en vivo (no son teoría, ya están en el código)
+## F. Hallazgos de código a re-confirmar en vivo — ✅ los 7 resueltos (17 jul 2026)
 
-Esta sección resume los 🐛 marcados arriba, para no perderlos en el resto de la checklist:
+Esta sección resumía los 🐛 marcados arriba. Los 7 se confirmaron presentes en el código y se corrigieron — ver `docs/gaps-pendientes.md` sección "Bugs de código de la auditoría exhaustiva" para el detalle de cada fix. Se deja la lista original para trazabilidad:
 
-1. **Onboarding de proveedores** (A7): sin manejo de errores — un fallo de red al entrar deja al usuario atascado en un spinner infinito, sin salida.
-2. **Proveedores nuevos / Productos nuevos en admin** (B5): un fallo al cargar pendientes también se queda en "Cargando..." infinito en vez de mostrar el error real.
-3. **Cancelar edición en Maestro de proveedores / Maestro de productos** (B8/B9): no revierte los campos al valor original guardado, a diferencia de Maestro negocios que sí lo hace.
-4. **Envío de abastecimiento con múltiples proveedores** (A14): sin rollback ante fallo parcial — un reintento después de una falla a mitad de camino puede duplicar los proveedores que ya se habían guardado bien.
-5. **Guardado de "Pegar pedido" / "Importar contactos"** con varios ítems (A5/A6): mismo riesgo de duplicados en un reintento tras fallo parcial (loops secuenciales sin transacción).
-6. **Mi negocio (tendero)** (A18): `barrio` vacío se guarda como `''`, mientras que ciudad/dirección/detalles/contacto vacíos se guardan como `null` — inconsistencia menor.
-7. **Splash** (A1): sin timeout — una llamada colgada (no error, solo nunca resuelve) puede dejar el spinner de arranque infinito.
+1. ✅ **Onboarding de proveedores** (A7): sin manejo de errores — un fallo de red al entrar deja al usuario atascado en un spinner infinito, sin salida. *Corregido: try/catch + pantalla de error con "Reintentar".*
+2. ✅ **Proveedores nuevos / Productos nuevos en admin** (B5): un fallo al cargar pendientes también se queda en "Cargando..." infinito en vez de mostrar el error real. *Corregido: orden de condiciones invertido + botón "Reintentar".*
+3. ✅ **Cancelar edición en Maestro de proveedores / Maestro de productos** (B8/B9): no revierte los campos al valor original guardado, a diferencia de Maestro negocios que sí lo hace. *Corregido: `cancelar()` restaura los campos desde el item original.*
+4. ✅ **Envío de abastecimiento con múltiples proveedores** (A14): sin rollback ante fallo parcial — un reintento después de una falla a mitad de camino puede duplicar los proveedores que ya se habían guardado bien. *Corregido: tracking en memoria evita duplicar en el reintento.*
+5. ✅ **Guardado de "Pegar pedido" / "Importar contactos"** con varios ítems (A5/A6): mismo riesgo de duplicados en un reintento tras fallo parcial (loops secuenciales sin transacción). *Corregido: mismo patrón de tracking.*
+6. ✅ **Mi negocio (tendero)** (A18): `barrio` vacío se guarda como `''`, mientras que ciudad/dirección/detalles/contacto vacíos se guardan como `null` — inconsistencia menor. *Corregido: ahora guarda `null`.*
+7. ✅ **Splash** (A1): sin timeout — una llamada colgada (no error, solo nunca resuelve) puede dejar el spinner de arranque infinito. *Corregido: timeout de 8s.*
 
 ---
 

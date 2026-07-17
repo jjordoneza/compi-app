@@ -12,16 +12,22 @@ export default function OnboardingProveedoresScreen({ route, navigation }) {
   const [pendientes, setPendientes] = useState(null); // relaciones sin catálogo aún
   const [total, setTotal] = useState(0);
   const [saltados, setSaltados] = useState([]); // ocultos solo en esta sesión
+  const [error, setError] = useState(null);
 
   const cargar = useCallback(async () => {
-    const rels = await RelacionesExt.listarPorComercio(comercioId);
-    const provs = await ProveedoresMaestro.listar();
-    const catalogos = await Promise.all(rels.map((r) => ProductosRelacionExt.listarPorRelacion(r.id)));
-    const sinCatalogo = rels
-      .map((r, i) => ({ rel: r, prov: provs.find((p) => p.id === r.proveedor_id), items: catalogos[i].length }))
-      .filter((x) => x.items === 0);
-    setTotal(rels.length);
-    setPendientes(sinCatalogo);
+    setError(null);
+    try {
+      const rels = await RelacionesExt.listarPorComercio(comercioId);
+      const provs = await ProveedoresMaestro.listar();
+      const catalogos = await Promise.all(rels.map((r) => ProductosRelacionExt.listarPorRelacion(r.id)));
+      const sinCatalogo = rels
+        .map((r, i) => ({ rel: r, prov: provs.find((p) => p.id === r.proveedor_id), items: catalogos[i].length }))
+        .filter((x) => x.items === 0);
+      setTotal(rels.length);
+      setPendientes(sinCatalogo);
+    } catch (e) {
+      setError(e.message);
+    }
   }, [comercioId]);
 
   // Al volver de PegarPedido o de RelacionDetalle (alta manual), recarga para que
@@ -35,6 +41,21 @@ export default function OnboardingProveedoresScreen({ route, navigation }) {
 
   function irAHome() {
     navigation.reset({ index: 0, routes: [{ name: 'Home', params: { comercioId, comercioNombre } }] });
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centrado}>
+        <Text style={styles.titulo}>No pudimos cargar tus proveedores</Text>
+        <Text style={styles.subtitulo}>{error}</Text>
+        <TouchableOpacity style={styles.boton} onPress={cargar}>
+          <Text style={styles.botonTexto}>Reintentar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.terminar} onPress={irAHome}>
+          <Text style={styles.terminarTexto}>Ir al inicio</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   if (pendientes === null) {
