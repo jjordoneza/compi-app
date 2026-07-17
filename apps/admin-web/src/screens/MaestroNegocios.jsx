@@ -13,11 +13,30 @@ const CAMPOS = [
   { key: 'contacto_nombre', label: 'Contacto' },
 ];
 
+const CATEGORIAS_COMERCIO = [
+  { value: '', label: '—' },
+  { value: 'tienda_barrio', label: 'Tienda de barrio' },
+  { value: 'panaderia', label: 'Panadería' },
+  { value: 'licorera', label: 'Licorera' },
+  { value: 'minimarket', label: 'Minimarket' },
+  { value: 'otro', label: 'Otro' },
+];
+
+const CANALES_ADQUISICION = [
+  { value: '', label: '—' },
+  { value: 'referido', label: 'Referido' },
+  { value: 'redes_sociales', label: 'Redes sociales' },
+  { value: 'visita_directa', label: 'Visita directa' },
+  { value: 'otro', label: 'Otro' },
+];
+
 function FilaComercio({ item, onGuardado }) {
   const [editando, setEditando] = useState(false);
   const [valores, setValores] = useState(() =>
     Object.fromEntries(CAMPOS.map((c) => [c.key, item[c.key] || '']))
   );
+  const [categoria, setCategoria] = useState(item.categoria || '');
+  const [canalAdquisicion, setCanalAdquisicion] = useState(item.canal_adquisicion || '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,6 +46,8 @@ function FilaComercio({ item, onGuardado }) {
 
   function cancelar() {
     setValores(Object.fromEntries(CAMPOS.map((c) => [c.key, item[c.key] || ''])));
+    setCategoria(item.categoria || '');
+    setCanalAdquisicion(item.canal_adquisicion || '');
     setEditando(false);
     setError('');
   }
@@ -42,6 +63,8 @@ function FilaComercio({ item, onGuardado }) {
         direccion: valores.direccion.trim() || null,
         telefono: valores.telefono.trim() || null,
         contacto_nombre: valores.contacto_nombre.trim() || null,
+        categoria: categoria || null,
+        canal_adquisicion: canalAdquisicion || null,
       });
       setEditando(false);
       await onGuardado();
@@ -66,6 +89,28 @@ function FilaComercio({ item, onGuardado }) {
         </td>
       ))}
       <td className="mono">{coordenadas}</td>
+      <td>
+        {editando ? (
+          <select value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+            {CATEGORIAS_COMERCIO.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        ) : (
+          CATEGORIAS_COMERCIO.find((c) => c.value === item.categoria)?.label || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
+      <td>
+        {editando ? (
+          <select value={canalAdquisicion} onChange={(e) => setCanalAdquisicion(e.target.value)}>
+            {CANALES_ADQUISICION.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        ) : (
+          CANALES_ADQUISICION.find((c) => c.value === item.canal_adquisicion)?.label || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
       <td className="acciones-cell">
         {error && <span className="error">{error}</span>}
         {editando ? (
@@ -137,6 +182,8 @@ export default function MaestroNegocios() {
                   <th key={c.key}>{c.label}</th>
                 ))}
                 <th>GPS</th>
+                <th>Categoría</th>
+                <th>Canal de adquisición</th>
                 <th>Acciones</th>
               </tr>
             </thead>

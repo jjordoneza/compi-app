@@ -51,6 +51,7 @@ export default function RelacionDetalleScreen({ route, navigation }) {
   const [entregaEnTienda, setEntregaEnTienda] = useState(true);
   const [diasPedido, setDiasPedido] = useState('');
   const [minimoPedido, setMinimoPedido] = useState('');
+  const [aceptaCredito, setAceptaCredito] = useState(false);
   const [mostrarDatos, setMostrarDatos] = useState(false);
 
   const [mostrarHistorial, setMostrarHistorial] = useState(false);
@@ -74,6 +75,7 @@ export default function RelacionDetalleScreen({ route, navigation }) {
         setEntregaEnTienda(relacion.entrega_en_tienda ?? true);
         setDiasPedido(relacion.dias_pedido || '');
         setMinimoPedido(relacion.minimo_pedido != null ? String(relacion.minimo_pedido) : '');
+        setAceptaCredito(relacion.acepta_credito ?? false);
       }
     } catch (e) {
       Alert.alert('Error cargando', e.message);
@@ -98,6 +100,7 @@ export default function RelacionDetalleScreen({ route, navigation }) {
         entrega_en_tienda: entregaEnTienda,
         dias_pedido: diasPedido,
         minimo_pedido: limpiarNumero(minimoPedido),
+        acepta_credito: aceptaCredito,
       });
       setMostrarDatos(false);
     } catch (e) {
@@ -272,6 +275,10 @@ export default function RelacionDetalleScreen({ route, navigation }) {
             <TextInput style={styles.input} placeholder="Ej. Lunes y jueves" value={diasPedido} onChangeText={setDiasPedido} />
             <Text style={styles.label}>Pedido mínimo ($)</Text>
             <TextInput style={styles.input} placeholder="Ej. 30000" keyboardType="numeric" value={minimoPedido} onChangeText={setMinimoPedido} />
+            <View style={styles.filaSwitch}>
+              <Text style={styles.label}>¿Te fía este proveedor?</Text>
+              <Switch value={aceptaCredito} onValueChange={setAceptaCredito} trackColor={{ true: COLORS.primary }} />
+            </View>
             <TouchableOpacity style={styles.boton} onPress={guardarDatosContacto}>
               <Text style={styles.botonTexto}>Guardar datos</Text>
             </TouchableOpacity>

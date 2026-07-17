@@ -25,6 +25,7 @@ function Chips({ opciones, seleccion, onToggle }) {
 function FilaProducto({ item, onGuardado }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(item.nombre || '');
+  const [marca, setMarca] = useState(item.marca || '');
   const [presentacion, setPresentacion] = useState(item.presentacion || '');
   const [categoria, setCategoria] = useState(item.categoria || null);
   const [unidadEmpaque, setUnidadEmpaque] = useState(item.unidad_empaque || '');
@@ -38,6 +39,7 @@ function FilaProducto({ item, onGuardado }) {
     try {
       await actualizarProductoMaestro(item.id, {
         nombre: nombre.trim(),
+        marca: marca.trim() || null,
         presentacion: presentacion.trim(),
         categoria: categoria || '',
         unidad_empaque: unidadEmpaque.trim() || null,
@@ -55,6 +57,13 @@ function FilaProducto({ item, onGuardado }) {
   return (
     <tr>
       <td>{editando ? <input value={nombre} onChange={(e) => setNombre(e.target.value)} /> : item.nombre}</td>
+      <td>
+        {editando ? (
+          <input placeholder="ej. Coca-Cola" value={marca} onChange={(e) => setMarca(e.target.value)} />
+        ) : (
+          item.marca || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
+      </td>
       <td>
         {editando ? (
           <input value={presentacion} onChange={(e) => setPresentacion(e.target.value)} />
@@ -114,6 +123,7 @@ export default function MaestroProductos() {
   const [error, setError] = useState('');
 
   const [nombreNuevo, setNombreNuevo] = useState('');
+  const [marcaNuevo, setMarcaNuevo] = useState('');
   const [presentacionNuevo, setPresentacionNuevo] = useState('');
   const [categoriaNuevo, setCategoriaNuevo] = useState(null);
   const [unidadEmpaqueNuevo, setUnidadEmpaqueNuevo] = useState('');
@@ -140,12 +150,14 @@ export default function MaestroProductos() {
     try {
       await crearProductoMaestro({
         nombre: nombreNuevo.trim(),
+        marca: marcaNuevo.trim() || null,
         presentacion: presentacionNuevo.trim(),
         categoria: categoriaNuevo || '',
         unidad_empaque: unidadEmpaqueNuevo.trim() || null,
         unidades_por_caja: unidadesPorCajaNuevo === '' ? null : Number(unidadesPorCajaNuevo),
       });
       setNombreNuevo('');
+      setMarcaNuevo('');
       setPresentacionNuevo('');
       setCategoriaNuevo(null);
       setUnidadEmpaqueNuevo('');
@@ -177,6 +189,12 @@ export default function MaestroProductos() {
             placeholder="Nombre"
             value={nombreNuevo}
             onChange={(e) => setNombreNuevo(e.target.value)}
+            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
+          />
+          <input
+            placeholder="Marca (ej. Coca-Cola)"
+            value={marcaNuevo}
+            onChange={(e) => setMarcaNuevo(e.target.value)}
             style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
           />
           <input
@@ -218,6 +236,7 @@ export default function MaestroProductos() {
             <thead>
               <tr>
                 <th>Nombre</th>
+                <th>Marca</th>
                 <th>Presentación</th>
                 <th>Categoría</th>
                 <th>Unidad</th>
