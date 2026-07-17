@@ -1,12 +1,41 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Switch, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt } from '../supabase';
-import { COLORS, RADIUS, formatMoney } from '../theme';
+import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt, PrecioReferencia } from '../supabase';
+import { COLORS, RADIUS, formatMoney, textoPrecioUnitario } from '../theme';
+import { UMBRAL_DESVIACION_PRECIO, UMBRAL_PRECIO_VIEJO_DIAS } from '../constants';
 
 function limpiarNumero(texto) {
   const soloDigitos = texto.replace(/[^0-9]/g, '');
   return soloDigitos ? parseInt(soloDigitos, 10) : null;
+}
+
+function precioViejo(precioActualizadoEn) {
+  if (!precioActualizadoEn) return false;
+  const dias = (Date.now() - new Date(precioActualizadoEn).getTime()) / 86400000;
+  return dias > UMBRAL_PRECIO_VIEJO_DIAS;
+}
+
+// Chips de una sola selección (tap de nuevo para deseleccionar) — mismo
+// patrón que ya usa apps/admin-web para categoría de producto.
+function ChipsFiltro({ opciones, valor, onCambiar }) {
+  if (opciones.length === 0) return null;
+  return (
+    <View style={styles.chipsFila}>
+      {opciones.map((op) => {
+        const activo = valor === op;
+        return (
+          <TouchableOpacity
+            key={op}
+            style={[styles.chip, activo && styles.chipActivo]}
+            onPress={() => onCambiar(activo ? null : op)}
+          >
+            <Text style={[styles.chipTexto, activo && styles.chipTextoActivo]}>{op}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
 }
 
 // Memoizado: al marcar una casilla, solo esta fila debe re-renderizar, no las
@@ -34,14 +63,18 @@ export default function RelacionDetalleScreen({ route, navigation }) {
   const { relacionId, proveedorNombre } = route.params;
   const [productosRelacion, setProductosRelacion] = useState([]);
   const [productosMaestro, setProductosMaestro] = useState([]);
+  const [relacionInfo, setRelacionInfo] = useState(null);
   const [mostrarPicker, setMostrarPicker] = useState(false);
   const [busquedaProducto, setBusquedaProducto] = useState('');
+  const [categoriaFiltro, setCategoriaFiltro] = useState(null);
+  const [marcaFiltro, setMarcaFiltro] = useState(null);
   const [seleccionados, setSeleccionados] = useState([]); // producto_id[] marcados en el picker
   const [agregandoVarios, setAgregandoVarios] = useState(false);
   const [alturaFooterAgregar, setAlturaFooterAgregar] = useState(0);
 
   const [editandoId, setEditandoId] = useState(null);
   const [precioEditado, setPrecioEditado] = useState('');
+  const [precioReferenciaActual, setPrecioReferenciaActual] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
   const [contactoNombre, setContactoNombre] = useState('');
@@ -67,6 +100,7 @@ export default function RelacionDetalleScreen({ route, navigation }) {
       ]);
       setProductosRelacion(prodRel);
       setProductosMaestro(prodMaestro);
+      setRelacionInfo(relacion);
       if (relacion) {
         setContactoNombre(relacion.contacto_nombre || '');
         setTelefonoContacto(relacion.telefono_contacto || '');
@@ -185,27 +219,65 @@ export default function RelacionDetalleScreen({ route, navigation }) {
     }
   }
 
-  function empezarEdicionPrecio(item) {
+  // Sin precio: prellena con la mediana de la red si existe (valor inicial
+  // editable). Con precio: no lo pisa, pero igual trae la referencia para el
+  // chequeo de sanidad al guardar.
+  async function empezarEdicionPrecio(item) {
     setEditandoId(item.id);
     setPrecioEditado(item.precio_pactado != null ? String(item.precio_pactado) : '');
+    setPrecioReferenciaActual(null);
+
+    if (!relacionInfo) return;
+    try {
+      const ref = await PrecioReferencia.obtener(relacionInfo.comercio_id, relacionInfo.proveedor_id, item.producto_id);
+      if (ref && ref.mediana != null) {
+        setPrecioReferenciaActual(ref.mediana);
+        if (item.precio_pactado == null) {
+          setPrecioEditado(String(Math.round(ref.mediana)));
+        }
+      }
+    } catch {
+      // Referencia es una ayuda — nunca bloquea poder teclear el precio a mano.
+    }
   }
 
-  async function guardarPrecio(item) {
-    if (guardando) return;
+  async function guardarPrecioConfirmado(item, nuevoPrecio) {
     setGuardando(true);
     try {
-      const nuevoPrecio = limpiarNumero(precioEditado);
       await ProductosRelacionExt.actualizar(item.id, { precio_pactado: nuevoPrecio });
       // Actualiza solo esa fila en memoria, sin recargar ni mover el scroll
       setProductosRelacion((prev) =>
-        prev.map((pr) => (pr.id === item.id ? { ...pr, precio_pactado: nuevoPrecio } : pr))
+        prev.map((pr) => (pr.id === item.id ? { ...pr, precio_pactado: nuevoPrecio, precio_actualizado_en: new Date().toISOString() } : pr))
       );
       setEditandoId(null);
+      setPrecioReferenciaActual(null);
     } catch (e) {
       Alert.alert('Error actualizando', e.message);
     } finally {
       setGuardando(false);
     }
+  }
+
+  // Chequeo de sanidad, nunca bloquea: precio muy distinto a la mediana de la
+  // red (en cualquier dirección) pide confirmación antes de guardar.
+  async function guardarPrecio(item) {
+    if (guardando) return;
+    const nuevoPrecio = limpiarNumero(precioEditado);
+    if (nuevoPrecio != null && precioReferenciaActual != null) {
+      const desviacion = Math.abs(nuevoPrecio - precioReferenciaActual) / precioReferenciaActual;
+      if (desviacion > UMBRAL_DESVIACION_PRECIO) {
+        Alert.alert(
+          'Precio distinto a lo usual',
+          `Otros tenderos le pagan aproximadamente $${formatMoney(Math.round(precioReferenciaActual))} a este proveedor por esto. ¿Confirmas $${formatMoney(nuevoPrecio)}?`,
+          [
+            { text: 'Corregir', style: 'cancel' },
+            { text: 'Confirmar', onPress: () => guardarPrecioConfirmado(item, nuevoPrecio) },
+          ]
+        );
+        return;
+      }
+    }
+    await guardarPrecioConfirmado(item, nuevoPrecio);
   }
 
   function confirmarEliminar(item, prod) {
@@ -235,8 +307,22 @@ export default function RelacionDetalleScreen({ route, navigation }) {
     return productosMaestro
       .filter((p) => !idsYaAgregados.includes(p.id))
       .filter((p) => p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()))
+      .filter((p) => !categoriaFiltro || p.categoria === categoriaFiltro)
+      .filter((p) => !marcaFiltro || p.marca === marcaFiltro)
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  }, [productosRelacion, productosMaestro, busquedaProducto]);
+  }, [productosRelacion, productosMaestro, busquedaProducto, categoriaFiltro, marcaFiltro]);
+
+  // Chips derivados del catálogo ya cargado en memoria — filtrado en cliente,
+  // no necesita ninguna consulta nueva (pg_trgm es para búsqueda del lado
+  // servidor en ai-proxy/admin, no para esto).
+  const categoriasDisponibles = useMemo(
+    () => [...new Set(productosMaestro.map((p) => p.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')),
+    [productosMaestro]
+  );
+  const marcasDisponibles = useMemo(
+    () => [...new Set(productosMaestro.map((p) => p.marca).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')),
+    [productosMaestro]
+  );
 
   const conPrecio = productosRelacion.filter((p) => p.precio_pactado != null).length;
 
@@ -296,13 +382,16 @@ export default function RelacionDetalleScreen({ route, navigation }) {
           const prod = productosMaestro.find((p) => p.id === item.producto_id);
           const enEdicion = editandoId === item.id;
           const sinPrecioItem = item.precio_pactado == null;
+          const presentacion = item.presentacion || prod?.presentacion;
+          const unitario = textoPrecioUnitario(item.precio_pactado, item.factor_conversion);
+          const viejo = !sinPrecioItem && !enEdicion && precioViejo(item.precio_actualizado_en);
 
           return (
             <View key={item.id} style={styles.item}>
               <View style={styles.filaTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemNombre}>{prod?.nombre || 'Producto'}</Text>
-                  <Text style={styles.itemSub}>{prod?.presentacion}</Text>
+                  <Text style={styles.itemSub}>{presentacion}{unitario ? ` · ${unitario}` : ''}</Text>
                 </View>
                 <TouchableOpacity onPress={() => confirmarEliminar(item, prod)}>
                   <Text style={styles.eliminarTexto}>Eliminar</Text>
@@ -315,19 +404,30 @@ export default function RelacionDetalleScreen({ route, navigation }) {
                 </View>
               )}
 
+              {viejo && (
+                <TouchableOpacity onPress={() => empezarEdicionPrecio(item)}>
+                  <Text style={styles.avisoPrecioViejo}>Precio de hace más de 2 meses · tócalo si cambió</Text>
+                </TouchableOpacity>
+              )}
+
               {enEdicion ? (
                 <View style={styles.filaEdicion}>
-                  <TextInput
-                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    keyboardType="numeric"
-                    placeholder="Sin definir"
-                    value={precioEditado}
-                    onChangeText={setPrecioEditado}
-                  />
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={[styles.input, { marginBottom: 0 }]}
+                      keyboardType="numeric"
+                      placeholder="Sin definir"
+                      value={precioEditado}
+                      onChangeText={setPrecioEditado}
+                    />
+                    {precioReferenciaActual != null && (
+                      <Text style={styles.textoReferencia}>Otros tenderos pagan ~${formatMoney(Math.round(precioReferenciaActual))}</Text>
+                    )}
+                  </View>
                   <TouchableOpacity style={styles.botonMini} disabled={guardando} onPress={() => guardarPrecio(item)}>
                     <Text style={styles.botonMiniTexto}>{guardando ? 'Guardando...' : 'Guardar'}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setEditandoId(null)}>
+                  <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => { setEditandoId(null); setPrecioReferenciaActual(null); }}>
                     <Text style={styles.botonMiniCancelarTexto}>Cancelar</Text>
                   </TouchableOpacity>
                 </View>
@@ -390,6 +490,8 @@ export default function RelacionDetalleScreen({ route, navigation }) {
               value={busquedaProducto}
               onChangeText={setBusquedaProducto}
             />
+            <ChipsFiltro opciones={categoriasDisponibles} valor={categoriaFiltro} onCambiar={setCategoriaFiltro} />
+            <ChipsFiltro opciones={marcasDisponibles} valor={marcaFiltro} onCambiar={setMarcaFiltro} />
             {disponibles.map((producto) => (
               <FilaPicker
                 key={producto.id}
@@ -460,6 +562,13 @@ const styles = StyleSheet.create({
   precioTocable: { fontSize: 13, color: COLORS.primary, fontWeight: '600', marginTop: 8 },
   avisoPrecio: { marginTop: 8, backgroundColor: COLORS.warningBg, borderRadius: RADIUS.sm, padding: 8 },
   avisoPrecioTexto: { fontSize: 11, color: COLORS.warning, lineHeight: 15 },
+  avisoPrecioViejo: { fontSize: 11, color: COLORS.warning, fontWeight: '600', marginTop: 8 },
+  textoReferencia: { fontSize: 10, color: COLORS.textSecondary, marginTop: 4 },
+  chipsFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  chip: { paddingHorizontal: 14, height: 40, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
+  chipActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  chipTexto: { fontSize: 12, color: COLORS.text },
+  chipTextoActivo: { color: COLORS.white, fontWeight: '600' },
   filaEdicion: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   botonMini: { backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 14, borderRadius: RADIUS.sm },
   botonMiniTexto: { color: COLORS.white, fontSize: 12, fontWeight: '600' },

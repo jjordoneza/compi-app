@@ -224,6 +224,24 @@ export const ProductosMaestroExt = {
   },
 };
 
+// Mediana de precio_pactado de OTROS comercios para un proveedor+producto en
+// toda la red (migración 0026). null si hay menos de 3 comercios con
+// evidencia — el cliente lo trata como "sin referencia todavía".
+export const PrecioReferencia = {
+  obtener: (comercioId, proveedorId, productoId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/precio_referencia`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({
+        p_comercio_id: comercioId,
+        p_proveedor_id: proveedorId,
+        p_producto_id: productoId,
+      }),
+    })
+      .then(manejar)
+      .then((rows) => (rows && rows[0]) || null),
+};
+
 // Motor de Reabastecimiento Predictivo — el cálculo vive en el núcleo (Postgres).
 // Ver supabase/migrations y docs/reabastecimiento-predictivo.md.
 export const Reabastecimiento = {

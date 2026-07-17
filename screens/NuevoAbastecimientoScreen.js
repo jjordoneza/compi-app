@@ -3,15 +3,35 @@ import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ProveedoresMaestro, ProductosMaestro, RelacionesExt, ProductosRelacionExt,
-  PedidoItemsFull, AbastecimientosExt, PedidosExt,
+  PedidoItemsFull, AbastecimientosExt, PedidosExt, PrecioReferencia,
 } from '../supabase';
-import { COLORS, RADIUS, formatMoney } from '../theme';
+import { COLORS, RADIUS, formatMoney, textoPrecioUnitario } from '../theme';
+import { UMBRAL_DESVIACION_PRECIO, UMBRAL_PRECIO_VIEJO_DIAS } from '../constants';
 
 const LIMITE_ABASTECIMIENTOS_USO = 15;
 
 function limpiarNumero(texto) {
   const soloDigitos = texto.replace(/[^0-9]/g, '');
   return soloDigitos ? parseInt(soloDigitos, 10) : null;
+}
+
+// Vocabulario conocido de unidad_pedido (mismo que pide el prompt de
+// ai-proxy) — fallback a +s naive para lo que no está en la lista.
+const PLURALES_UNIDAD = {
+  caja: 'cajas', unidad: 'unidades', bulto: 'bultos', paca: 'pacas',
+  canasta: 'canastas', libra: 'libras', botella: 'botellas', bolsa: 'bolsas', paquete: 'paquetes',
+};
+
+function pluralizarUnidad(palabra, cantidad) {
+  if (!palabra) return '';
+  if (cantidad === 1) return palabra;
+  return PLURALES_UNIDAD[palabra.toLowerCase()] || `${palabra}s`;
+}
+
+function precioViejo(precioActualizadoEn) {
+  if (!precioActualizadoEn) return false;
+  const dias = (Date.now() - new Date(precioActualizadoEn).getTime()) / 86400000;
+  return dias > UMBRAL_PRECIO_VIEJO_DIAS;
 }
 
 export default function NuevoAbastecimientoScreen({ route, navigation }) {
@@ -32,6 +52,7 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
   const [precioEditandoId, setPrecioEditandoId] = useState(null);
   const [precioEditandoValor, setPrecioEditandoValor] = useState('');
   const [guardandoPrecio, setGuardandoPrecio] = useState(false);
+  const [precioReferenciaActual, setPrecioReferenciaActual] = useState(null);
 
   useEffect(() => { cargar(); }, []);
 
@@ -129,29 +150,75 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
     });
   }
 
-  function empezarEditarPrecio(pr) {
-    setPrecioEditandoId(precioEditandoId === pr.id ? null : pr.id);
-    setPrecioEditandoValor('');
+  // Sin precio: prellena con la mediana de la red si existe (valor inicial
+  // editable, reduce la fricción de partir de cero). Con precio (se abre para
+  // corregirlo por viejo): no lo pisa, pero igual trae la referencia para
+  // poder mostrar el chequeo de sanidad al guardar.
+  async function empezarEditarPrecio(pr, relacionId) {
+    if (precioEditandoId === pr.id) {
+      setPrecioEditandoId(null);
+      setPrecioReferenciaActual(null);
+      return;
+    }
+    setPrecioEditandoId(pr.id);
+    setPrecioEditandoValor(pr.precio_pactado != null ? String(pr.precio_pactado) : '');
+    setPrecioReferenciaActual(null);
+
+    const proveedor = proveedores.find((p) => p.relacionId === relacionId)?.proveedor;
+    if (!proveedor) return;
+    try {
+      const ref = await PrecioReferencia.obtener(comercioId, proveedor.id, pr.producto_id);
+      if (ref && ref.mediana != null) {
+        setPrecioReferenciaActual(ref.mediana);
+        if (pr.precio_pactado == null) {
+          setPrecioEditandoValor(String(Math.round(ref.mediana)));
+        }
+      }
+    } catch {
+      // Referencia es una ayuda — nunca bloquea poder teclear el precio a mano.
+    }
   }
 
-  async function guardarPrecioInline(pr, relacionId) {
-    if (guardandoPrecio) return;
+  async function guardarPrecioConfirmado(pr, relacionId, nuevoPrecio) {
     setGuardandoPrecio(true);
     try {
-      const nuevoPrecio = limpiarNumero(precioEditandoValor);
       await ProductosRelacionExt.actualizar(pr.id, { precio_pactado: nuevoPrecio });
       setProductosPorRelacion((prev) => ({
         ...prev,
         [relacionId]: prev[relacionId].map((item) =>
-          item.id === pr.id ? { ...item, precio_pactado: nuevoPrecio } : item
+          item.id === pr.id ? { ...item, precio_pactado: nuevoPrecio, precio_actualizado_en: new Date().toISOString() } : item
         ),
       }));
       setPrecioEditandoId(null);
+      setPrecioReferenciaActual(null);
     } catch (e) {
       Alert.alert('Error guardando precio', e.message);
     } finally {
       setGuardandoPrecio(false);
     }
+  }
+
+  // Chequeo de sanidad, nunca bloquea: si el precio tecleado se aleja mucho
+  // de la mediana de la red (en cualquier dirección), confirma antes de
+  // guardar — un tendero puede pagar legítimamente más por menor volumen.
+  async function guardarPrecioInline(pr, relacionId) {
+    if (guardandoPrecio) return;
+    const nuevoPrecio = limpiarNumero(precioEditandoValor);
+    if (nuevoPrecio != null && precioReferenciaActual != null) {
+      const desviacion = Math.abs(nuevoPrecio - precioReferenciaActual) / precioReferenciaActual;
+      if (desviacion > UMBRAL_DESVIACION_PRECIO) {
+        Alert.alert(
+          'Precio distinto a lo usual',
+          `Otros tenderos le pagan aproximadamente $${formatMoney(Math.round(precioReferenciaActual))} a este proveedor por esto. ¿Confirmas $${formatMoney(nuevoPrecio)}?`,
+          [
+            { text: 'Corregir', style: 'cancel' },
+            { text: 'Confirmar', onPress: () => guardarPrecioConfirmado(pr, relacionId, nuevoPrecio) },
+          ]
+        );
+        return;
+      }
+    }
+    await guardarPrecioConfirmado(pr, relacionId, nuevoPrecio);
   }
 
   function toggleExpandido(relacionId) {
@@ -280,6 +347,9 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
                     const cant = cantidades[pr.id] || 0;
                     const sinPrecio = pr.precio_pactado == null;
                     const editandoEste = precioEditandoId === pr.id;
+                    const presentacion = pr.presentacion || pr.producto?.presentacion;
+                    const unitario = textoPrecioUnitario(pr.precio_pactado, pr.factor_conversion);
+                    const viejo = !sinPrecio && precioViejo(pr.precio_actualizado_en);
 
                     return (
                       <View key={pr.id} style={styles.item}>
@@ -287,15 +357,16 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
                           <View style={{ flex: 1 }}>
                             <Text style={styles.itemNombre}>{pr.producto?.nombre || 'Producto'}</Text>
                             <Text style={styles.itemSub}>
-                              {pr.producto?.presentacion}
+                              {presentacion}
                               {!sinPrecio ? ` · $${formatMoney(pr.precio_pactado)}` : ''}
+                              {unitario ? ` (${unitario})` : ''}
                             </Text>
                           </View>
                           <View style={styles.stepper}>
                             <TouchableOpacity style={styles.stepperBoton} onPress={() => cambiarCantidad(pr.id, -1)}>
                               <Text style={styles.stepperTexto}>−</Text>
                             </TouchableOpacity>
-                            <Text style={styles.stepperNumero}>{cant}</Text>
+                            <Text style={styles.stepperNumero}>{cant} {pluralizarUnidad(pr.unidad_pedido, cant) || 'und'}</Text>
                             <TouchableOpacity style={[styles.stepperBoton, styles.stepperBotonMas]} onPress={() => cambiarCantidad(pr.id, 1)}>
                               <Text style={[styles.stepperTexto, { color: COLORS.white }]}>+</Text>
                             </TouchableOpacity>
@@ -303,24 +374,35 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
                         </View>
 
                         {sinPrecio && !editandoEste && (
-                          <TouchableOpacity onPress={() => empezarEditarPrecio(pr)}>
+                          <TouchableOpacity onPress={() => empezarEditarPrecio(pr, relacionId)}>
                             <Text style={styles.avisoTocable}>Sin precio configurado · tócalo para ponerlo</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {viejo && !editandoEste && (
+                          <TouchableOpacity onPress={() => empezarEditarPrecio(pr, relacionId)}>
+                            <Text style={styles.avisoTocable}>Precio de hace más de 2 meses · tócalo si cambió</Text>
                           </TouchableOpacity>
                         )}
 
                         {editandoEste && (
                           <View style={styles.filaEdicion}>
-                            <TextInput
-                              style={styles.inputPrecio}
-                              keyboardType="numeric"
-                              placeholder="Ej. 13500"
-                              value={precioEditandoValor}
-                              onChangeText={setPrecioEditandoValor}
-                            />
+                            <View style={{ flex: 1 }}>
+                              <TextInput
+                                style={styles.inputPrecio}
+                                keyboardType="numeric"
+                                placeholder="Ej. 13500"
+                                value={precioEditandoValor}
+                                onChangeText={setPrecioEditandoValor}
+                              />
+                              {precioReferenciaActual != null && (
+                                <Text style={styles.textoReferencia}>Otros tenderos pagan ~${formatMoney(Math.round(precioReferenciaActual))}</Text>
+                              )}
+                            </View>
                             <TouchableOpacity style={styles.botonMini} disabled={guardandoPrecio} onPress={() => guardarPrecioInline(pr, relacionId)}>
                               <Text style={styles.botonMiniTexto}>{guardandoPrecio ? 'Guardando...' : 'Guardar'}</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setPrecioEditandoId(null)}>
+                            <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => { setPrecioEditandoId(null); setPrecioReferenciaActual(null); }}>
                               <Text style={styles.botonMiniCancelarTexto}>Cancelar</Text>
                             </TouchableOpacity>
                           </View>
@@ -399,6 +481,7 @@ const styles = StyleSheet.create({
   avisoTocable: { fontSize: 11, color: COLORS.warning, marginTop: 8, fontWeight: '600' },
   filaEdicion: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   inputPrecio: { flex: 1, height: 40, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.sm, paddingHorizontal: 12, fontSize: 13, color: COLORS.text, backgroundColor: COLORS.white },
+  textoReferencia: { fontSize: 10, color: COLORS.textSecondary, marginTop: 4 },
   botonMini: { backgroundColor: COLORS.primary, paddingVertical: 9, paddingHorizontal: 12, borderRadius: RADIUS.sm },
   botonMiniTexto: { color: COLORS.white, fontSize: 12, fontWeight: '600' },
   botonMiniCancelar: { paddingVertical: 9, paddingHorizontal: 8 },
