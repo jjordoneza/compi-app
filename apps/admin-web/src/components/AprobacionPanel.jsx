@@ -1,10 +1,9 @@
 import { useState } from 'react';
 
 // Compartido entre Proveedores nuevos y Productos nuevos: buscar si ya existe
-// en el catálogo maestro antes de crear uno nuevo (misma decisión que
-// docs/catalogo-matching-unidades.md describe para el futuro — hoy es
-// búsqueda simple por ilike, listo para upgrade cuando existan las RPCs de
-// similitud sin tocar esta UI).
+// en el catálogo maestro antes de crear uno nuevo. `buscar` usa las RPCs de
+// similitud (pg_trgm, migración 0025) — este componente no sabe ni le
+// importa cómo busca, solo renderiza lo que le llega.
 export default function AprobacionPanel({ buscar, onAprobar, onRechazar, renderMatch }) {
   const [query, setQuery] = useState('');
   const [resultados, setResultados] = useState([]);

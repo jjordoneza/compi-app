@@ -181,24 +181,20 @@ export async function listarProductosPendientes() {
   return data;
 }
 
+// Migrado de ilike a similitud (pg_trgm, migración 0025) — el mismo upgrade
+// que este archivo ya anticipaba (ver comentario en AprobacionPanel.jsx):
+// encuentra coincidencias con errores de tipeo/variaciones de nombre, no solo
+// substring exacto.
 export async function buscarProveedores(query) {
   if (!query.trim()) return [];
-  const { data, error } = await supabase
-    .from('proveedores_maestro')
-    .select('id, nombre, categoria')
-    .ilike('nombre', `%${query}%`)
-    .limit(8);
+  const { data, error } = await supabase.rpc('buscar_proveedor_similar', { p_nombre: query, p_umbral: 0.2 });
   if (error) throw error;
   return data;
 }
 
 export async function buscarProductos(query) {
   if (!query.trim()) return [];
-  const { data, error } = await supabase
-    .from('productos_maestro')
-    .select('id, nombre, presentacion, categoria')
-    .ilike('nombre', `%${query}%`)
-    .limit(8);
+  const { data, error } = await supabase.rpc('buscar_producto_similar', { p_nombre: query, p_umbral: 0.2 });
   if (error) throw error;
   return data;
 }
