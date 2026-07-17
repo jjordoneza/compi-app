@@ -4,22 +4,35 @@ import { cargarSesion, haySesion, usuarioActual } from '../auth';
 import { MisComercios } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
 
+// Si restaurar() ni resuelve ni falla (red colgada, no un error real) en este
+// tiempo, se deja de esperar y se entra por el flujo normal en vez de quedar
+// con el spinner de arranque para siempre.
+const TIMEOUT_RESTAURAR_MS = 8000;
+
 export default function SplashScreen({ navigation }) {
   const [verificando, setVerificando] = useState(true);
 
   useEffect(() => {
-    restaurar();
+    let vencido = false; // true cuando ya se dejó de esperar (timeout o resuelto)
+    restaurar(() => vencido);
+    const timeout = setTimeout(() => {
+      vencido = true;
+      setVerificando(false);
+    }, TIMEOUT_RESTAURAR_MS);
+    return () => clearTimeout(timeout);
   }, []);
 
-  async function restaurar() {
+  async function restaurar(yaVencido) {
     try {
       await cargarSesion();
+      if (yaVencido()) return; // el timeout ya mostró "Empezar"; no pisar esa pantalla
       if (!haySesion()) {
         setVerificando(false);
         return;
       }
       // Sesión válida: rutea directo según los comercios del usuario.
       const comercios = await MisComercios.listar();
+      if (yaVencido()) return;
       if (comercios.length === 0) {
         navigation.replace('RegistroNegocio', { telefono: usuarioActual()?.phone || '' });
       } else if (comercios.length === 1) {
@@ -28,7 +41,7 @@ export default function SplashScreen({ navigation }) {
         navigation.replace('SeleccionarNegocio');
       }
     } catch (e) {
-      setVerificando(false); // ante cualquier problema, deja entrar por el flujo normal
+      if (!yaVencido()) setVerificando(false); // ante cualquier problema, deja entrar por el flujo normal
     }
   }
 

@@ -92,7 +92,7 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
       await ComerciosExt.actualizar(comercioId, {
         nombre: nombre.trim(),
         ciudad: ciudad.trim() || null,
-        barrio: barrio.trim(),
+        barrio: barrio.trim() || null,
         direccion: direccion.trim() || null,
         detalles: detalles.trim() || null,
         contacto_nombre: contactoNombre.trim() || null,

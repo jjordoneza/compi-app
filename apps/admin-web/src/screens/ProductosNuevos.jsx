@@ -9,6 +9,7 @@ export default function ProductosNuevos() {
   const [error, setError] = useState('');
 
   async function cargar() {
+    setError('');
     try {
       setItems(await listarProductosPendientes());
     } catch (e) {
@@ -35,10 +36,13 @@ export default function ProductosNuevos() {
   return (
     <div>
       <CabeceraCuraduria campoEdad="curaduria_edad_pendiente_productos_dias" etiqueta="Sugerencia de producto" />
-      {items === null ? (
+      {error ? (
+        <div>
+          <p className="error">{error}</p>
+          <button type="button" className="gridBoton" onClick={cargar}>Reintentar</button>
+        </div>
+      ) : items === null ? (
         <p className="ayuda">Cargando...</p>
-      ) : error ? (
-        <p className="error">{error}</p>
       ) : items.length === 0 ? (
         <p className="vacio">No hay productos pendientes.</p>
       ) : (

@@ -66,18 +66,19 @@ Llegó como parte del mismo trabajo de Fase 4: la pantalla **Pedidos (Operación
 ### `sugerencias_cambio_proveedor` (antes gap #6) — 16 jul 2026
 Ya existe el flujo completo: el tendero propone un cambio de teléfono de un proveedor desde `ProveedoresTabScreen` ("avísale a Compi para actualizarlo"), y el admin lo aprueba o rechaza desde `SugerenciasCambioScreen` (accesible desde Perfil → herramientas de administración). Aprobar actualiza el teléfono en `proveedores_maestro` para todas las tiendas que usan ese proveedor.
 
-## Bugs de código encontrados en la auditoría exhaustiva (`checklistauditoria.md`, 17 jul 2026)
+## Bugs de código de la auditoría exhaustiva (`checklistauditoria.md`) — 7 resueltos, 17 jul 2026
 
-Nuevos, no estaban en revisiones anteriores. Confirmados 2 directamente en el código durante esta revisión (marcados ✅verificado); el resto queda por confirmar en vivo pero ya está señalado en el código fuente, no es solo teoría.
+Los 7 hallazgos de la sección F de `checklistauditoria.md` se confirmaron todos presentes en el código (no solo teoría) y se corrigieron en esta ronda:
 
-1. **✅ verificado — `ProveedoresNuevos.jsx:38`** (y previsiblemente `ProductosNuevos.jsx`, mismo patrón): el render hace `items === null ? <Cargando> : error ? <Error> : ...` — si falla la carga inicial y `items` nunca se setea, la condición de "Cargando" gana siempre y el mensaje de error real nunca se muestra. Pantalla colgada sin salida.
-2. **✅ verificado — Maestro de proveedores / Maestro de productos**: "Cancelar" en modo edición no revierte los campos al valor original guardado (a diferencia de Maestro negocios, que sí lo hace) — se puede quedar con datos abandonados en pantalla tras cancelar y reabrir.
-3. **Onboarding de proveedores (`OnboardingProveedoresScreen`)**: sin manejo de errores; un fallo de red al entrar deja el spinner infinito, sin mensaje ni botón de escape.
-4. **Splash (`SplashScreen`)**: sin timeout explícito — una llamada de sesión/comercios que nunca resuelve (no que falle, que se cuelgue) deja el spinner de arranque infinito.
-5. **Envío de abastecimiento con 2+ proveedores (`ConfirmarPedidoScreen`)**: sin rollback ante fallo parcial — un reintento después de una falla a mitad de camino puede crear un segundo abastecimiento y duplicar los proveedores que ya se habían guardado bien.
-6. **Guardado de "Pegar pedido" / "Importar contactos"** con varios ítems: mismo riesgo de duplicados en reintento tras fallo parcial (loops secuenciales sin transacción).
-7. **Mi negocio (tendero)**: `barrio` vacío se guarda como `''`, mientras que ciudad/dirección/detalles/contacto vacíos se guardan como `null` — inconsistencia menor, puede afectar filtros/reportes que esperan `null`.
-8. **Superficie sin validar (seguridad, no bug de UI)**: `actualizarEstadoPedido`/`actualizarEstadoAbastecimiento` (admin-web) son PATCH directos a la tabla, sin RPC — nada en Postgres impide setear un estado inválido o fuera de secuencia si se llama la API directo, fuera de esta UI.
+1. **✅ resuelto — `ProveedoresNuevos.jsx` / `ProductosNuevos.jsx`**: el render evaluaba `items === null` antes que `error`, así que un fallo de carga se quedaba en "Cargando..." para siempre. Se invirtió el orden (`error` primero) y se agregó botón "Reintentar".
+2. **✅ resuelto — Maestro de proveedores / Maestro de productos**: "Cancelar" en modo edición no revertía los campos al valor original guardado. Ahora `cancelar()` restaura cada campo desde `item` antes de salir de edición, igual que Maestro negocios.
+3. **✅ resuelto — Onboarding de proveedores (`OnboardingProveedoresScreen`)**: `cargar()` no tenía try/catch; un fallo de red dejaba el spinner infinito. Ahora captura el error y muestra pantalla dedicada con "Reintentar" / "Ir al inicio".
+4. **✅ resuelto — Splash (`SplashScreen`)**: se agregó timeout de 8s (`TIMEOUT_RESTAURAR_MS`) — si `cargarSesion()`/`MisComercios.listar()` nunca resuelve, se deja de esperar y se muestra "Empezar" en vez de colgarse.
+5. **✅ resuelto — Envío de abastecimiento (`ConfirmarPedidoScreen`)**: sin RPC/transacción de por medio, se agregó tracking en memoria (`abastecimientoIdRef` + `enviadosRef`) para que un reintento tras fallo parcial reutilice el abastecimiento ya creado y salte los proveedores que ya se guardaron, en vez de duplicarlos.
+6. **✅ resuelto — "Pegar pedido" / "Importar contactos"**: mismo patrón de tracking en memoria (`procesadosRef` / `guardadosRef`) para que un reintento tras fallo parcial no repita los ítems ya guardados.
+7. **✅ resuelto — Mi negocio (tendero)**: `barrio` vacío ahora se guarda como `null`, igual que ciudad/dirección/detalles/contacto (antes se guardaba como `''`).
+
+**Nota de seguridad que queda documentada, no es de esta lista de 7 ni se tocó**: `actualizarEstadoPedido`/`actualizarEstadoAbastecimiento` (admin-web) siguen siendo PATCH directos a la tabla, sin RPC — nada en Postgres impide un estado inválido o fuera de secuencia si se llama la API directo, fuera de esta UI. Vale la pena una RPC dedicada si se prioriza cerrar esa superficie.
 
 ## Pendientes ya registrados de conversaciones anteriores (no son de esta revisión, se listan para no perderlos)
 

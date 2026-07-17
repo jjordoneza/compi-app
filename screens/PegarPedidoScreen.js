@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { ProductosRelacionExt, ProductosSugeridos } from '../supabase';
 import { usuarioActual } from '../auth';
@@ -14,6 +14,9 @@ export default function PegarPedidoScreen({ route, navigation }) {
   // vincula al producto existente o se manda a curaduría como distinto.
   const [confirmaciones, setConfirmaciones] = useState({});
   const [guardando, setGuardando] = useState(false);
+  // Índices ya guardados con éxito, para que un reintento tras fallo parcial
+  // no vuelva a crear los mismos productos.
+  const procesadosRef = useRef(new Set());
 
   async function convertir() {
     if (!texto.trim()) return;
@@ -22,6 +25,7 @@ export default function PegarPedidoScreen({ route, navigation }) {
       const productos = await extraerProductosDePedido(texto.trim());
       setDetectados(productos);
       setConfirmaciones({});
+      procesadosRef.current = new Set();
     } catch (e) {
       Alert.alert('No pudimos leer el pedido', e.message);
     } finally {
@@ -42,6 +46,9 @@ export default function PegarPedidoScreen({ route, navigation }) {
   }
 
   function quitarProducto(index) {
+    // Quitar un ítem corre los índices de los demás — se limpia el registro de
+    // "ya guardado" para no desalinearlo con un guardado parcial previo.
+    procesadosRef.current = new Set();
     setDetectados((prev) => prev.filter((_, i) => i !== index));
   }
 
@@ -50,9 +57,9 @@ export default function PegarPedidoScreen({ route, navigation }) {
     setGuardando(true);
     try {
       const precargaCantidades = {};
-      let nuevosCount = 0;
 
       for (let i = 0; i < detectados.length; i++) {
+        if (procesadosRef.current.has(i)) continue; // ya se guardó en un intento anterior
         const item = detectados[i];
         // "Ya lo tenemos, ¿es este?" confirmado por el tendero: vincula al
         // producto EXISTENTE, sin curaduría (docs/catalogo-matching-unidades.md).
@@ -82,10 +89,14 @@ export default function PegarPedidoScreen({ route, navigation }) {
             unidad_pedido: item.unidad_pedido || null,
             estado: 'pendiente',
           });
-          nuevosCount++;
         }
+        procesadosRef.current.add(i);
       }
 
+      // Se recalcula sobre TODOS los ítems (no solo los de este intento), así
+      // el mensaje queda correcto aunque esta llamada sea un reintento tras
+      // un fallo parcial anterior.
+      const nuevosCount = detectados.filter((item, i) => !(item.coincidencia && confirmaciones[i] === 'si')).length;
       const matchCount = detectados.length - nuevosCount;
       const partesMensaje = [];
       if (matchCount > 0) partesMensaje.push(`${matchCount} ya estaban en nuestro catálogo y quedaron vinculados a ${proveedorNombre}.`);
@@ -110,7 +121,13 @@ export default function PegarPedidoScreen({ route, navigation }) {
           : [{ text: 'Entendido', onPress: () => navigation.goBack() }]
       );
     } catch (e) {
-      Alert.alert('Error guardando', e.message);
+      const faltan = detectados.length - procesadosRef.current.size;
+      Alert.alert(
+        'Error guardando',
+        faltan < detectados.length
+          ? `${e.message}\n\nLo que ya se guardó no se duplica. Toca "Se ve bien, guardar" de nuevo para continuar con los ${faltan} que faltan.`
+          : e.message
+      );
     } finally {
       setGuardando(false);
     }
