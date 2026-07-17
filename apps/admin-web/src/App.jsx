@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './screens/Login';
 import Dashboard from './screens/Dashboard';
+import AdopcionRetencion from './screens/AdopcionRetencion';
+import SaludRed from './screens/SaludRed';
 import ProveedoresNuevos from './screens/ProveedoresNuevos';
 import ProductosNuevos from './screens/ProductosNuevos';
 import CambiosPendientes from './screens/CambiosPendientes';
@@ -12,6 +14,8 @@ import PedidosOperacion from './screens/PedidosOperacion';
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', Componente: Dashboard },
+  { id: 'adopcion', label: 'Adopción y retención', Componente: AdopcionRetencion },
+  { id: 'saludRed', label: 'Salud de la red', Componente: SaludRed },
   { id: 'proveedores', label: 'Proveedores nuevos', Componente: ProveedoresNuevos },
   { id: 'productos', label: 'Productos nuevos', Componente: ProductosNuevos },
   { id: 'cambios', label: 'Cambios pendientes', Componente: CambiosPendientes },

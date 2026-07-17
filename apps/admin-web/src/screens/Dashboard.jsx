@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { obtenerStats, obtenerAbastecimientosPorDia, obtenerStatsEstrategicos, obtenerIdcPorComercio } from '../api';
+import { UMBRAL_ALERTA_CURADURIA_DIAS } from '../constants';
 
 function StatTile({ label, valor, tono }) {
   return (
@@ -139,8 +140,13 @@ function TarjetaIdc({ estrategicos }) {
   const [porComercio, setPorComercio] = useState(null);
   const [error, setError] = useState('');
 
+  // Número absoluto a propósito, no porcentaje: proveedores_totales es una
+  // estimación de memoria capturada una sola vez al registro — nada impide
+  // que un comercio termine gestionando más proveedores reales de los que
+  // declaró al inicio, así que dividir podía dar >100% y dejaba de ser
+  // confiable. proveedores_totales se muestra como contexto, nunca como
+  // denominador.
   const { idc_gestionados_total: gestionados, idc_proveedores_totales_total: totales } = estrategicos;
-  const pct = totales > 0 ? Math.round((gestionados / totales) * 1000) / 10 : null;
 
   async function toggleDesglose() {
     if (verDesglose) {
@@ -158,13 +164,13 @@ function TarjetaIdc({ estrategicos }) {
 
   return (
     <div className="chartCard" style={{ borderLeft: '3px solid var(--accent)' }}>
-      <p className="chartTitulo">IDC — Índice de Dependencia de Compi</p>
+      <p className="chartTitulo">IDC — Proveedores gestionados activamente por Compi</p>
       <p className="mono" style={{ fontSize: 48, fontWeight: 700, margin: '4px 0 6px' }}>
-        {pct === null ? '—' : `${pct}%`}
+        {gestionados}
       </p>
       <p className="sub">
-        {gestionados} proveedores gestionados por Compi de {totales} declarados en total (suma ponderada, todos los
-        comercios con dato válido)
+        En toda la red. Contexto: los comercios declararon {totales} proveedores en total al registrarse (estimación
+        de memoria, no es un límite ni un objetivo).
       </p>
       <div style={{ marginTop: 12 }}>
         <button type="button" className="gridBoton secundario" onClick={toggleDesglose}>
@@ -182,23 +188,18 @@ function TarjetaIdc({ estrategicos }) {
                 <thead>
                   <tr>
                     <th>Negocio</th>
-                    <th>Gestionados</th>
-                    <th>Declarados</th>
-                    <th>IDC</th>
+                    <th>Gestionados por Compi</th>
+                    <th>Declarados al registro</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {porComercio.map((c) => {
-                    const p = c.proveedores_totales > 0 ? Math.round((c.gestionados / c.proveedores_totales) * 1000) / 10 : null;
-                    return (
-                      <tr key={c.comercio_id}>
-                        <td>{c.nombre}</td>
-                        <td className="mono">{c.gestionados}</td>
-                        <td className="mono">{c.proveedores_totales ?? '—'}</td>
-                        <td className="mono">{p === null ? '—' : `${p}%`}</td>
-                      </tr>
-                    );
-                  })}
+                  {porComercio.map((c) => (
+                    <tr key={c.comercio_id}>
+                      <td>{c.nombre}</td>
+                      <td className="mono">{c.gestionados}</td>
+                      <td className="mono">{c.proveedores_totales ?? '—'}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -210,20 +211,21 @@ function TarjetaIdc({ estrategicos }) {
 }
 
 function TarjetaCuraduria({ estrategicos }) {
-  const edad = estrategicos.curaduria_edad_pendiente_dias;
-  const resolucion = estrategicos.curaduria_resolucion_prom_horas;
+  const edadProveedores = estrategicos.curaduria_edad_pendiente_proveedores_dias;
+  const edadProductos = estrategicos.curaduria_edad_pendiente_productos_dias;
   return (
     <div className="chartCard">
-      <p className="chartTitulo">Salud de la cola de curaduría</p>
+      <p className="chartTitulo">Edad de la cola de curaduría — pendiente más antigua</p>
       <div className="statGrid" style={{ marginBottom: 0 }}>
         <StatTile
-          label="Pendiente más antigua"
-          valor={edad === null ? 'Sin pendientes' : `${Math.round(edad)} d`}
-          tono={edad !== null && edad > 2 ? 'warning' : undefined}
+          label="Proveedores"
+          valor={edadProveedores === null ? 'Sin pendientes' : `${Math.round(edadProveedores)} d`}
+          tono={edadProveedores !== null && edadProveedores > UMBRAL_ALERTA_CURADURIA_DIAS ? 'warning' : undefined}
         />
         <StatTile
-          label="Resolución prom. (últimas 20)"
-          valor={resolucion === null ? '—' : `${Math.round(resolucion)} h`}
+          label="Productos"
+          valor={edadProductos === null ? 'Sin pendientes' : `${Math.round(edadProductos)} d`}
+          tono={edadProductos !== null && edadProductos > UMBRAL_ALERTA_CURADURIA_DIAS ? 'warning' : undefined}
         />
       </div>
     </div>
@@ -354,6 +356,9 @@ export default function Dashboard() {
           <StatTile label="Pedidos confirmados" valor={stats.pedidos_confirmados} tono="info" />
           <StatTile label="Pedidos entregados" valor={stats.pedidos_entregados} tono="good" />
           <StatTile label="Sugerencias pendientes" valor={stats.sugerencias_pendientes} tono="accent" />
+          {estrategicos && (
+            <StatTile label="Comercios activos esta semana" valor={estrategicos.comercios_activos_semana_actual} />
+          )}
           <StatTile label="Negocios" valor={stats.total_comercios} />
           <StatTile label="Proveedores maestro" valor={stats.total_proveedores_maestro} />
           <StatTile label="Productos maestro" valor={stats.total_productos_maestro} />
