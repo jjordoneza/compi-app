@@ -42,6 +42,14 @@ function FilaProveedor({ item, onGuardado }) {
     setCategorias((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
   }
 
+  function cancelar() {
+    setNombre(item.nombre || '');
+    setCategorias((item.categoria || '').split(',').map((c) => c.trim()).filter(Boolean));
+    setNivelServicio(item.nivel_servicio || 'personal');
+    setEditando(false);
+    setError('');
+  }
+
   async function guardar() {
     setError('');
     setGuardando(true);
@@ -88,7 +96,7 @@ function FilaProveedor({ item, onGuardado }) {
             <button type="button" className="gridBoton" disabled={guardando} onClick={guardar}>
               {guardando ? '...' : 'Guardar'}
             </button>
-            <button type="button" className="gridBoton secundario" disabled={guardando} onClick={() => setEditando(false)}>
+            <button type="button" className="gridBoton secundario" disabled={guardando} onClick={cancelar}>
               Cancelar
             </button>
           </>

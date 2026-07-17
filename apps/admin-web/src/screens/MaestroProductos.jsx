@@ -41,6 +41,18 @@ function FilaProducto({ item, onGuardado }) {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
+  function cancelar() {
+    setNombre(item.nombre || '');
+    setMarca(item.marca || '');
+    setPresentacion(item.presentacion || '');
+    setCategoria(item.categoria || null);
+    setUnidadEmpaque(item.unidad_empaque || '');
+    setUnidadesPorCaja(item.unidades_por_caja ?? '');
+    setUnidadBase(item.unidad_base || '');
+    setEditando(false);
+    setError('');
+  }
+
   async function guardar() {
     setError('');
     setGuardando(true);
@@ -122,7 +134,7 @@ function FilaProducto({ item, onGuardado }) {
             <button type="button" className="gridBoton" disabled={guardando} onClick={guardar}>
               {guardando ? '...' : 'Guardar'}
             </button>
-            <button type="button" className="gridBoton secundario" disabled={guardando} onClick={() => setEditando(false)}>
+            <button type="button" className="gridBoton secundario" disabled={guardando} onClick={cancelar}>
               Cancelar
             </button>
           </>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Abastecimientos, Pedidos, PedidoItems } from '../../supabase';
+import { AbastecimientoCompleto } from '../../supabase';
 import { COLORS, RADIUS, formatMoney } from '../../theme';
 
 export default function ConfirmarPedidoScreen({ route, navigation }) {
@@ -23,25 +23,10 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
   async function enviar() {
     setEnviando(true);
     try {
-      const abastecimiento = await Abastecimientos.crear({ comercio_id: comercioId, estado: 'procesando' });
-      const abastecimientoId = abastecimiento[0].id;
-
-      for (const grupo of gruposParaEnviar) {
-        const pedido = await Pedidos.crear({
-          abastecimiento_id: abastecimientoId,
-          relacion_id: grupo.relacionId,
-          estado: 'pendiente',
-        });
-        const pedidoId = pedido[0].id;
-
-        for (const item of grupo.items) {
-          await PedidoItems.crear({
-            pedido_id: pedidoId,
-            producto_relacion_id: item.productoRelacionId,
-            cantidad: item.cantidad,
-          });
-        }
-      }
+      // Una sola llamada RPC transaccional (0028): si algo falla a mitad de
+      // camino no queda nada a medio guardar, así un reintento nunca duplica.
+      const abastecimiento = await AbastecimientoCompleto.crear(comercioId, gruposParaEnviar);
+      const abastecimientoId = abastecimiento.id;
 
       // Reset en vez de replace: elimina del historial el formulario de pedido y esta pantalla,
       // así "Atrás" desde la pantalla de éxito no regresa a un pedido ya enviado.

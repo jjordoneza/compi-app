@@ -66,13 +66,19 @@ export default function ImportarContactosScreen({ route, navigation }) {
       return;
     }
     setGuardando(true);
+    // Copia marcada contacto por contacto a medida que se envía: si falla a
+    // mitad de camino, un reintento solo procesa lo que falta en vez de volver
+    // a enviar desde cero los que ya se guardaron (bug de duplicados encontrado
+    // en la auditoría, mismo patrón que PegarPedidoScreen.js).
+    const actualizados = [...resultados];
     try {
       // Fase 3: el tendero ya no crea proveedores_maestro directo — se propone
       // a la cola de curaduría (comparten identidad global entre todas las
       // tiendas, así que necesitan aprobación). El vínculo con este comercio se
       // crea recién cuando se aprueba, no antes.
       for (const i of seleccionados) {
-        const contacto = resultados[i];
+        const contacto = actualizados[i];
+        if (contacto._guardado) continue;
         await ProveedoresSugeridos.crear({
           comercio_id: comercioId,
           sugerido_por: usuarioActual()?.id || null,
@@ -81,6 +87,7 @@ export default function ImportarContactosScreen({ route, navigation }) {
           canal: 'whatsapp',
           estado: 'pendiente',
         });
+        actualizados[i] = { ...contacto, _guardado: true };
       }
       Alert.alert(
         'Enviado a revisión',
@@ -88,7 +95,8 @@ export default function ImportarContactosScreen({ route, navigation }) {
         [{ text: 'Entendido', onPress: () => navigation.replace('Home', { comercioId, comercioNombre }) }]
       );
     } catch (e) {
-      Alert.alert('Error importando', e.message);
+      setResultados(actualizados);
+      Alert.alert('No terminamos de enviar todo', `${e.message}\n\nToca el botón otra vez — lo que ya se envió no se repite.`);
     } finally {
       setGuardando(false);
     }

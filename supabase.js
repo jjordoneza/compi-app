@@ -148,6 +148,24 @@ export const AbastecimientosExt = {
       : fetch(`${SUPABASE_URL}/rest/v1/abastecimientos?id=in.(${ids.join(',')})&select=*`, { headers: HEADERS }).then(manejar),
 };
 
+// RPC de 0028: crea abastecimiento + pedidos + pedido_items en una sola
+// transacción — evita duplicados si un reintento sigue a un fallo parcial
+// (bug encontrado en la auditoría, ver ConfirmarPedidoScreen.js).
+export const AbastecimientoCompleto = {
+  crear: (comercioId, grupos) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/crear_abastecimiento`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({
+        p_comercio_id: comercioId,
+        p_grupos: grupos.map((g) => ({
+          relacion_id: g.relacionId,
+          items: g.items.map((it) => ({ producto_relacion_id: it.productoRelacionId, cantidad: it.cantidad })),
+        })),
+      }),
+    }).then(manejar),
+};
+
 export const AbastecimientosGlobal = {
   listarTodos: () =>
     fetch(`${SUPABASE_URL}/rest/v1/abastecimientos?select=*&order=fecha.desc`, { headers: HEADERS }).then(manejar),

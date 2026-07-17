@@ -4,6 +4,15 @@ import { cargarSesion, haySesion, usuarioActual } from '../auth';
 import { MisComercios } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
 
+const TIMEOUT_MS = 8000;
+
+function conTimeout(promesa, ms) {
+  return Promise.race([
+    promesa,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+}
+
 export default function SplashScreen({ navigation }) {
   const [verificando, setVerificando] = useState(true);
 
@@ -13,13 +22,13 @@ export default function SplashScreen({ navigation }) {
 
   async function restaurar() {
     try {
-      await cargarSesion();
+      await conTimeout(cargarSesion(), TIMEOUT_MS);
       if (!haySesion()) {
         setVerificando(false);
         return;
       }
       // Sesión válida: rutea directo según los comercios del usuario.
-      const comercios = await MisComercios.listar();
+      const comercios = await conTimeout(MisComercios.listar(), TIMEOUT_MS);
       if (comercios.length === 0) {
         navigation.replace('RegistroNegocio', { telefono: usuarioActual()?.phone || '' });
       } else if (comercios.length === 1) {

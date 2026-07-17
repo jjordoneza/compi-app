@@ -48,12 +48,27 @@ export default function PegarPedidoScreen({ route, navigation }) {
   async function confirmarGuardar() {
     if (!detectados || detectados.length === 0 || faltaConfirmar) return;
     setGuardando(true);
+    // Copia mutable marcada item por item a medida que se guarda: si falla a
+    // mitad de camino, un reintento (mismo botón) solo procesa lo que falta en
+    // vez de volver a crear desde cero los productos ya guardados en el intento
+    // anterior (bug de duplicados encontrado en la auditoría).
+    const actualizados = [...detectados];
     try {
       const precargaCantidades = {};
       let nuevosCount = 0;
+      let matchCount = 0;
 
-      for (let i = 0; i < detectados.length; i++) {
-        const item = detectados[i];
+      for (let i = 0; i < actualizados.length; i++) {
+        const item = actualizados[i];
+        if (item._guardado) {
+          if (item._productoRelacionId) {
+            precargaCantidades[item._productoRelacionId] = item.cantidad;
+            matchCount++;
+          } else {
+            nuevosCount++;
+          }
+          continue;
+        }
         // "Ya lo tenemos, ¿es este?" confirmado por el tendero: vincula al
         // producto EXISTENTE, sin curaduría (docs/catalogo-matching-unidades.md).
         // Sin coincidencia, o el tendero dijo "no, es distinto": va a la cola.
@@ -68,6 +83,8 @@ export default function PegarPedidoScreen({ route, navigation }) {
             unidad_pedido: item.unidad_pedido || null,
           });
           precargaCantidades[productoRelacionCreado[0].id] = item.cantidad;
+          actualizados[i] = { ...item, _guardado: true, _productoRelacionId: productoRelacionCreado[0].id };
+          matchCount++;
         } else {
           await ProductosSugeridos.crear({
             comercio_id: comercioId,
@@ -82,11 +99,11 @@ export default function PegarPedidoScreen({ route, navigation }) {
             unidad_pedido: item.unidad_pedido || null,
             estado: 'pendiente',
           });
+          actualizados[i] = { ...item, _guardado: true };
           nuevosCount++;
         }
       }
 
-      const matchCount = detectados.length - nuevosCount;
       const partesMensaje = [];
       if (matchCount > 0) partesMensaje.push(`${matchCount} ya estaban en nuestro catálogo y quedaron vinculados a ${proveedorNombre}.`);
       if (nuevosCount > 0) partesMensaje.push(`${nuevosCount} son nuevos y quedaron en revisión — te avisamos cuando estén disponibles.`);
@@ -110,7 +127,10 @@ export default function PegarPedidoScreen({ route, navigation }) {
           : [{ text: 'Entendido', onPress: () => navigation.goBack() }]
       );
     } catch (e) {
-      Alert.alert('Error guardando', e.message);
+      // Guarda el progreso parcial: lo ya creado queda marcado _guardado y el
+      // botón de guardar, al reintentar, lo salta en vez de duplicarlo.
+      setDetectados(actualizados);
+      Alert.alert('No terminamos de guardar todo', `${e.message}\n\nToca "Guardar" otra vez — lo que ya se guardó no se repite.`);
     } finally {
       setGuardando(false);
     }
