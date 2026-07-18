@@ -74,7 +74,7 @@ el dashboard de Supabase (Edge Functions):
 ## Builds (EAS)
 
 La configuración está en `eas.json` y el proyecto está enlazado en `app.json`
-(`extra.eas.projectId`, slug `compi-v2`). Perfiles:
+(`extra.eas.projectId`, slug `compi`, owner `jj-tecnologia-sas`). Perfiles:
 
 - **preview** → genera un `.apk` instalable directo (sideload), distribución interna.
 - **production** → app bundle para tienda, con versionado remoto autoincremental.
