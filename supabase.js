@@ -32,6 +32,14 @@ function tabla(nombre) {
 
 export const Comercios = tabla('comercios');
 export const ProveedoresMaestro = tabla('proveedores_maestro');
+
+export const ProveedoresMaestroExt = {
+  ...ProveedoresMaestro,
+  obtenerPorId: (id) =>
+    fetch(`${SUPABASE_URL}/rest/v1/proveedores_maestro?id=eq.${id}&select=*`, { headers: HEADERS })
+      .then(manejar)
+      .then((rows) => (rows && rows[0]) || null),
+};
 export const Relaciones = tabla('relaciones');
 export const ProductosMaestro = tabla('productos_maestro');
 // Colas de curaduría (gap #2 Fase 3): el tendero propone, el admin aprueba.

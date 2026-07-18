@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Switch, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt } from '../supabase';
+import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt, ProveedoresMaestroExt } from '../supabase';
 import { COLORS, RADIUS, formatMoney, textoPrecioUnitario } from '../theme';
 import { UMBRAL_PRECIO_VIEJO_DIAS } from '../constants';
 
@@ -76,10 +76,15 @@ export default function RelacionDetalleScreen({ route, navigation }) {
   const [precioEditado, setPrecioEditado] = useState('');
   const [guardando, setGuardando] = useState(false);
 
+  // Decisión de producto (18 jul 2026): contacto_nombre, telefono_contacto_2
+  // y direccion_entrega dejan de ser editables — se muestran de solo lectura
+  // con el valor que ya tuvieran (nadie los vuelve a cambiar desde aquí). El
+  // teléfono deja de leer relacion.telefono_contacto (eso sigue siendo "Mi
+  // contacto con este proveedor" en ProveedoresTabScreen, sin tocar) y pasa a
+  // mostrar el número oficial de proveedores_maestro.
   const [contactoNombre, setContactoNombre] = useState('');
-  const [telefonoContacto, setTelefonoContacto] = useState('');
-  const [telefonoContacto2, setTelefonoContacto2] = useState('');
   const [direccionLocal, setDireccionLocal] = useState('');
+  const [proveedorMaestro, setProveedorMaestro] = useState(null);
   const [entregaEnTienda, setEntregaEnTienda] = useState(true);
   const [diasPedido, setDiasPedido] = useState('');
   const [minimoPedido, setMinimoPedido] = useState('');
@@ -102,13 +107,14 @@ export default function RelacionDetalleScreen({ route, navigation }) {
       setRelacionInfo(relacion);
       if (relacion) {
         setContactoNombre(relacion.contacto_nombre || '');
-        setTelefonoContacto(relacion.telefono_contacto || '');
-        setTelefonoContacto2(relacion.telefono_contacto_2 || '');
         setDireccionLocal(relacion.direccion_entrega || '');
         setEntregaEnTienda(relacion.entrega_en_tienda ?? true);
         setDiasPedido(relacion.dias_pedido || '');
         setMinimoPedido(relacion.minimo_pedido != null ? String(relacion.minimo_pedido) : '');
         setAceptaCredito(relacion.acepta_credito ?? false);
+        if (relacion.proveedor_id) {
+          ProveedoresMaestroExt.obtenerPorId(relacion.proveedor_id).then(setProveedorMaestro);
+        }
       }
     } catch (e) {
       Alert.alert('Error cargando', e.message);
@@ -123,13 +129,12 @@ export default function RelacionDetalleScreen({ route, navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation]);
 
+  // Solo estos 4 quedan editables por el tendero — el resto de la pantalla
+  // (contacto, teléfono, dirección de entrega, ubicación del proveedor) es
+  // de solo lectura, fijada por el admin en Maestro de proveedores.
   async function guardarDatosContacto() {
     try {
       await RelacionesExt.actualizar(relacionId, {
-        contacto_nombre: contactoNombre,
-        telefono_contacto: telefonoContacto,
-        telefono_contacto_2: telefonoContacto2,
-        direccion_entrega: direccionLocal,
         entrega_en_tienda: entregaEnTienda,
         dias_pedido: diasPedido,
         minimo_pedido: limpiarNumero(minimoPedido),
@@ -311,14 +316,26 @@ export default function RelacionDetalleScreen({ route, navigation }) {
 
         {mostrarDatos && (
           <View style={styles.card}>
-            <Text style={styles.label}>Nombre del contacto (dueño/administrador)</Text>
-            <TextInput style={styles.input} placeholder="Ej. Karen Suárez" value={contactoNombre} onChangeText={setContactoNombre} />
-            <Text style={styles.label}>Teléfono contacto 1</Text>
-            <TextInput style={styles.input} placeholder="300 000 0000" keyboardType="phone-pad" value={telefonoContacto} onChangeText={setTelefonoContacto} />
-            <Text style={styles.label}>Teléfono contacto 2 (opcional)</Text>
-            <TextInput style={styles.input} placeholder="300 000 0000" keyboardType="phone-pad" value={telefonoContacto2} onChangeText={setTelefonoContacto2} />
-            <Text style={styles.label}>Dirección del local del proveedor</Text>
-            <TextInput style={styles.input} placeholder="Cra 45 #12-30" value={direccionLocal} onChangeText={setDireccionLocal} />
+            <Text style={styles.labelSoloLectura}>Estos datos los define Compi — solo puedes verlos aquí.</Text>
+
+            <Text style={styles.label}>Nombre del contacto</Text>
+            <Text style={styles.valorSoloLectura}>{contactoNombre || '—'}</Text>
+
+            <Text style={styles.label}>Teléfono</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.telefono || '—'}</Text>
+
+            <Text style={styles.label}>Dirección de entrega</Text>
+            <Text style={styles.valorSoloLectura}>{direccionLocal || '—'}</Text>
+
+            <Text style={styles.label}>Ciudad</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.ciudad || '—'}</Text>
+
+            <Text style={styles.label}>Barrio</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.barrio || '—'}</Text>
+
+            <Text style={styles.label}>Dirección del proveedor</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.direccion || '—'}</Text>
+
             <View style={styles.filaSwitch}>
               <Text style={styles.label}>Entrega en tu tienda</Text>
               <Switch value={entregaEnTienda} onValueChange={setEntregaEnTienda} trackColor={{ true: COLORS.primary }} />
@@ -515,6 +532,8 @@ const styles = StyleSheet.create({
   acordeonTexto: { color: COLORS.primary, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   card: { backgroundColor: COLORS.white, borderRadius: RADIUS.md, padding: 14, marginTop: 10, borderWidth: 0.5, borderColor: COLORS.borderLight },
   label: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 6, marginTop: 8 },
+  labelSoloLectura: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 10, fontStyle: 'italic' },
+  valorSoloLectura: { fontSize: 14, color: COLORS.text, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.borderLight, borderRadius: RADIUS.md, paddingHorizontal: 14, paddingVertical: 12 },
   input: { height: 46, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.bg, marginBottom: 10 },
   filaSwitch: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
   boton: { marginTop: 14, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
