@@ -1,4 +1,7 @@
--- Vuelve a la versión de 0033 (sin n_tiendas_activas).
+-- Vuelve a la versión de 0033 (sin n_tiendas_activas). DROP explícito por el
+-- mismo motivo que en el forward: cambia el conjunto de columnas OUT.
+drop function if exists admin_stats_por_proveedor();
+
 create or replace function admin_stats_por_proveedor()
 returns table (
   proveedor_id uuid,

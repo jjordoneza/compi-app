@@ -101,6 +101,15 @@ Ronda grande de fixes/decisiones a partir de una auditoría manual del usuario (
 
 **Maestro de proveedores — ficha completa (migraciones `0033`/`0034`):** ahora muestra y permite editar `contacto_nombre`, `telefono_secundario` (además de nombre/categoría/nivel de servicio/barrio/ciudad/dirección, ya existentes); y muestra de solo lectura (calculado en vivo vía RPC `admin_stats_por_proveedor`): # productos distintos que vende, # pedidos históricos en la red, e "indicador de adopción" (Alta/Media/Nuevo-baja) basado en # de tiendas activas — **decisión explícita del usuario**: sin datos reales de calidad (entregas a tiempo, quejas) todavía, se usa volumen de red como proxy. Umbrales (≥5 tiendas = alta, 2-4 = media) son provisionales, recalibrables sin tocar el backend.
 
+## Fix de migraciones que fallaron al aplicar — 18 jul 2026
+
+El usuario corrió `0028`-`0034` a mano y reportó 2 errores (ninguna de las dos llegó a aplicarse, ambas transacciones se revirtieron):
+
+- **`0029`**: `cannot alter type of a column used by a view or rule` — la vista `v_cadencia_producto` (migración `0001`, Motor de Reabastecimiento Predictivo) depende de `abastecimientos.fecha` vía su regla `_RETURN`. Corregido: la migración ahora dropea la vista, altera la columna, la recrea idéntica, y re-aplica el `revoke select ... from anon, authenticated` de la migración `0007` (recrear una vista resetea sus grants).
+- **`0034`**: `cannot change return type of existing function` — `0033` ya había creado `admin_stats_por_proveedor()` con 3 columnas de salida; `CREATE OR REPLACE` no permite cambiar el conjunto de columnas `OUT` de una función existente. Corregido: se agregó `drop function if exists admin_stats_por_proveedor();` antes del `create or replace` (y lo mismo en su rollback, que tiene el problema inverso).
+
+Como ninguna de las dos migraciones llegó a aplicarse nunca, se corrigieron los archivos `0029`/`0034` (y sus rollbacks) en el mismo lugar, no con parches nuevos.
+
 ## Pendientes ya registrados de conversaciones anteriores (no son de esta revisión, se listan para no perderlos)
 
 - **Términos de uso / política de privacidad**: pendiente diseñar antes de lanzar a tenderos reales — `ImportarContactosScreen` envía contactos reales (nombres de terceros) a la API de Anthropic vía `ai-proxy` para clasificación.

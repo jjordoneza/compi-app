@@ -5,6 +5,13 @@
 -- disponible más honesta de "confiabilidad adoptada", no mide calidad real.
 -- Los umbrales de la etiqueta (ver MaestroProveedores.jsx) son provisionales
 -- y se pueden recalibrar sin tocar esta función.
+--
+-- DROP explícito antes del CREATE: 0033 ya creó esta función con 3 columnas
+-- de salida (sin n_tiendas_activas) — Postgres no permite CREATE OR REPLACE
+-- cuando cambia el conjunto de columnas OUT, solo cuando el cuerpo cambia
+-- con la misma firma.
+drop function if exists admin_stats_por_proveedor();
+
 create or replace function admin_stats_por_proveedor()
 returns table (
   proveedor_id uuid,
