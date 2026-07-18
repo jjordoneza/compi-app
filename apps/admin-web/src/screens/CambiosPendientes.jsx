@@ -8,9 +8,17 @@ import {
   rechazarCambioComercio,
 } from '../api';
 
+const MOTIVOS_RECHAZO = [
+  'Número errado',
+  'No fue posible hacer contacto',
+  'El proveedor ya no existe',
+  'Otro',
+];
+
 function FilaCambio({ item, titulo, lineas, onAprobar, onRechazar }) {
   const [mostrarRechazo, setMostrarRechazo] = useState(false);
-  const [motivo, setMotivo] = useState('');
+  const [motivoSeleccionado, setMotivoSeleccionado] = useState(MOTIVOS_RECHAZO[0]);
+  const [motivoOtro, setMotivoOtro] = useState('');
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState('');
 
@@ -29,7 +37,8 @@ function FilaCambio({ item, titulo, lineas, onAprobar, onRechazar }) {
     setError('');
     setProcesando(true);
     try {
-      await onRechazar(motivo.trim() || null);
+      const motivoFinal = motivoSeleccionado === 'Otro' ? motivoOtro.trim() || 'Otro' : motivoSeleccionado;
+      await onRechazar(motivoFinal);
     } catch (e) {
       setError(e.message);
       setProcesando(false);
@@ -59,7 +68,14 @@ function FilaCambio({ item, titulo, lineas, onAprobar, onRechazar }) {
         </div>
         {mostrarRechazo && (
           <div className="rechazo">
-            <input placeholder="Motivo (opcional)" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+            <select value={motivoSeleccionado} onChange={(e) => setMotivoSeleccionado(e.target.value)}>
+              {MOTIVOS_RECHAZO.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            {motivoSeleccionado === 'Otro' && (
+              <input placeholder="Especifica el motivo" value={motivoOtro} onChange={(e) => setMotivoOtro(e.target.value)} />
+            )}
             <button type="button" disabled={procesando} onClick={rechazar}>
               {procesando ? 'Procesando...' : 'Confirmar rechazo'}
             </button>

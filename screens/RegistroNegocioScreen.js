@@ -180,7 +180,16 @@ export default function RegistroNegocioScreen({ route, navigation }) {
             <TouchableOpacity style={styles.stepperBoton} onPress={() => cambiarProveedoresTotales(-1)}>
               <Text style={styles.stepperTexto}>−</Text>
             </TouchableOpacity>
-            <Text style={styles.stepperNumero}>{proveedoresTotales}</Text>
+            <TextInput
+              style={styles.stepperInput}
+              keyboardType="number-pad"
+              value={String(proveedoresTotales)}
+              onChangeText={(texto) => {
+                const numero = parseInt(texto.replace(/[^0-9]/g, ''), 10);
+                setProveedoresTotales(Number.isNaN(numero) ? 0 : numero);
+              }}
+              selectTextOnFocus
+            />
             <TouchableOpacity style={styles.stepperBoton} onPress={() => cambiarProveedoresTotales(1)}>
               <Text style={styles.stepperTexto}>+</Text>
             </TouchableOpacity>
@@ -217,6 +226,7 @@ const styles = StyleSheet.create({
   stepperBoton: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
   stepperTexto: { fontSize: 20, color: COLORS.primary, fontWeight: '600' },
   stepperNumero: { fontSize: 22, fontWeight: '700', color: COLORS.text, minWidth: 30, textAlign: 'center' },
+  stepperInput: { fontSize: 22, fontWeight: '700', color: COLORS.text, minWidth: 60, textAlign: 'center', padding: 0 },
   boton: { marginTop: 24, backgroundColor: COLORS.primary, height: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
   botonTexto: { color: COLORS.white, fontSize: 16, fontWeight: '600' },

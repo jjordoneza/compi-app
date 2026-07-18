@@ -490,8 +490,18 @@ export default function RelacionDetalleScreen({ route, navigation }) {
               value={busquedaProducto}
               onChangeText={setBusquedaProducto}
             />
-            <ChipsFiltro opciones={categoriasDisponibles} valor={categoriaFiltro} onCambiar={setCategoriaFiltro} />
-            <ChipsFiltro opciones={marcasDisponibles} valor={marcaFiltro} onCambiar={setMarcaFiltro} />
+            {categoriasDisponibles.length > 0 && (
+              <>
+                <Text style={styles.labelFiltro}>Categoría</Text>
+                <ChipsFiltro opciones={categoriasDisponibles} valor={categoriaFiltro} onCambiar={setCategoriaFiltro} />
+              </>
+            )}
+            {marcasDisponibles.length > 0 && (
+              <>
+                <Text style={styles.labelFiltro}>Marca</Text>
+                <ChipsFiltro opciones={marcasDisponibles} valor={marcaFiltro} onCambiar={setMarcaFiltro} />
+              </>
+            )}
             {disponibles.map((producto) => (
               <FilaPicker
                 key={producto.id}
@@ -565,6 +575,7 @@ const styles = StyleSheet.create({
   avisoPrecioViejo: { fontSize: 11, color: COLORS.warning, fontWeight: '600', marginTop: 8 },
   textoReferencia: { fontSize: 10, color: COLORS.textSecondary, marginTop: 4 },
   chipsFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  labelFiltro: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4, textTransform: 'uppercase' },
   chip: { paddingHorizontal: 14, height: 40, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
   chipActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipTexto: { fontSize: 12, color: COLORS.text },

@@ -141,7 +141,7 @@ export default function PegarPedidoScreen({ route, navigation }) {
         {detectados === null ? (
           <>
             <Text style={styles.titulo}>¿Qué le compras a {proveedorNombre}?</Text>
-            <Text style={styles.subtitulo}>Pega tu último pedido de WhatsApp. Esto arma el catálogo de lo que este proveedor te vende — no crea un pedido todavía.</Text>
+            <Text style={styles.subtitulo}>Pega tu último pedido de WhatsApp. Esto arma el catálogo de lo que este proveedor te vende — no crea un pedido todavía. Recuerda ponerle la marca y el tamaño a cada producto.</Text>
             <TextInput
               style={styles.textarea}
               multiline
@@ -229,6 +229,12 @@ export default function PegarPedidoScreen({ route, navigation }) {
             )}
             <TouchableOpacity style={styles.botonSecundario} onPress={() => setDetectados(null)}>
               <Text style={styles.botonSecundarioTexto}>Intentar con otro texto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.botonSecundario}
+              onPress={() => navigation.navigate('Home', { comercioId, comercioNombre })}
+            >
+              <Text style={styles.botonSecundarioTexto}>Cancelar</Text>
             </TouchableOpacity>
           </>
         )}

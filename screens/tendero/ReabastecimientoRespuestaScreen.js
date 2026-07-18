@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { ReabastecimientoAjustes, ReabastecimientoSugerencias } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
 
-const MOTIVOS = ['Otro proveedor', 'Otra app', 'Aún tenía inventario'];
+const MOTIVOS = ['Ya tenía inventario', 'Lo compré por otro medio'];
 
 export default function ReabastecimientoRespuestaScreen({ route, navigation }) {
   const { comercioId, comercioNombre, productoId, productoNombre, promedioIntervalo, sugerenciaId } = route.params;
@@ -47,7 +47,7 @@ export default function ReabastecimientoRespuestaScreen({ route, navigation }) {
       <Text style={styles.titulo}>Anotado, gracias</Text>
       <Text style={styles.subtitulo}>No te volveremos a sugerir {productoNombre} tan pronto.</Text>
 
-      <Text style={styles.label}>¿Por dónde lo compraste? (opcional)</Text>
+      <Text style={styles.label}>¿Qué pasó? (opcional)</Text>
       <View style={styles.chipsContainer}>
         {MOTIVOS.map((m) => (
           <TouchableOpacity key={m} style={styles.chip} disabled={guardando} onPress={() => guardarYVolver(m)}>

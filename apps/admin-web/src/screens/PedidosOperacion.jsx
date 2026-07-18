@@ -201,27 +201,31 @@ export default function PedidosOperacion() {
         ))}
       </nav>
 
-      {secciones.map((seccion) => {
-        const filtrados = abastecimientos
-          .filter((ab) => (ab.estado || 'procesando') === seccion.estado)
-          .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-        return (
-          <div key={seccion.estado} style={{ marginBottom: 20 }}>
-            <h2 className="subtitulo">
-              {seccion.titulo} ({filtrados.length})
-            </h2>
-            {filtrados.length === 0 ? (
-              <p className="vacio">Nada aquí por ahora.</p>
-            ) : (
-              <ul className="lista">
-                {filtrados.map((ab) => (
-                  <TarjetaAbastecimiento key={ab.id} ab={ab} catalogo={catalogo} onCambioEstado={manejarCambioEstado} />
-                ))}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+      {/* Kanban temporal (3 columnas) mientras se desarrolla el motor de
+          abastecimiento completo — ordenado del más antiguo al más nuevo. */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        {secciones.map((seccion) => {
+          const filtrados = abastecimientos
+            .filter((ab) => (ab.estado || 'procesando') === seccion.estado)
+            .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+          return (
+            <div key={seccion.estado} style={{ flex: 1, minWidth: 0 }}>
+              <h2 className="subtitulo">
+                {seccion.titulo} ({filtrados.length})
+              </h2>
+              {filtrados.length === 0 ? (
+                <p className="vacio">Nada aquí por ahora.</p>
+              ) : (
+                <ul className="lista">
+                  {filtrados.map((ab) => (
+                    <TarjetaAbastecimiento key={ab.id} ab={ab} catalogo={catalogo} onCambioEstado={manejarCambioEstado} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

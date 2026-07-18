@@ -76,6 +76,7 @@ function FilaComercio({ item, onGuardado }) {
   }
 
   const coordenadas = item.lat != null && item.lng != null ? `${item.lat.toFixed(4)}, ${item.lng.toFixed(4)}` : '—';
+  const fechaRegistro = item.created_at ? new Date(item.created_at).toLocaleDateString('es-CO') : '—';
 
   return (
     <tr>
@@ -88,6 +89,7 @@ function FilaComercio({ item, onGuardado }) {
           )}
         </td>
       ))}
+      <td className="mono">{fechaRegistro}</td>
       <td className="mono">{coordenadas}</td>
       <td>
         {editando ? (
@@ -152,12 +154,14 @@ export default function MaestroNegocios() {
   const filtrados = useMemo(() => {
     if (!comercios) return [];
     const q = busqueda.trim().toLowerCase();
-    if (!q) return comercios;
-    return comercios.filter((c) =>
-      [c.nombre, c.ciudad, c.barrio, c.direccion, c.telefono, c.contacto_nombre]
-        .filter(Boolean)
-        .some((v) => v.toLowerCase().includes(q))
-    );
+    const base = !q
+      ? comercios
+      : comercios.filter((c) =>
+          [c.nombre, c.ciudad, c.barrio, c.direccion, c.telefono, c.contacto_nombre]
+            .filter(Boolean)
+            .some((v) => v.toLowerCase().includes(q))
+        );
+    return [...base].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }, [comercios, busqueda]);
 
   if (error) return <p className="error">{error}</p>;
@@ -181,6 +185,7 @@ export default function MaestroNegocios() {
                 {CAMPOS.map((c) => (
                   <th key={c.key}>{c.label}</th>
                 ))}
+                <th>Registro</th>
                 <th>GPS</th>
                 <th>Categoría</th>
                 <th>Canal de adquisición</th>
