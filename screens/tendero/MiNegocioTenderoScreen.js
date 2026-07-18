@@ -34,6 +34,7 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
   const [nombre, setNombre] = useState('');
   const [ciudad, setCiudad] = useState('');
   const [barrio, setBarrio] = useState('');
@@ -75,6 +76,31 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   }
 
   const telefonoCambio = telefono.trim() !== (telefonoOriginal || '');
+
+  function confirmarEliminar() {
+    Alert.alert(
+      'Eliminar perfil',
+      `¿Eliminar "${nombre}"? Se quita de tu lista de negocios — tu historial de pedidos queda intacto por si lo necesitas después. Puedes seguir usando tus otros negocios si tienes más de uno.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: eliminarPerfil },
+      ]
+    );
+  }
+
+  async function eliminarPerfil() {
+    setEliminando(true);
+    try {
+      await ComerciosExt.actualizar(comercioId, { activo: false });
+      // Splash decide a dónde ir según cuántos comercios activos le quedan al
+      // usuario (0 → registro, 1 → Home, 2+ → seleccionar) — reusa esa lógica
+      // en vez de duplicarla aquí.
+      navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });
+    } catch (e) {
+      Alert.alert('Error eliminando', e.message);
+      setEliminando(false);
+    }
+  }
 
   async function guardar() {
     if (!telefonoCambio) return;
@@ -141,6 +167,14 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
         >
           <Text style={styles.botonTexto}>{guardando ? 'Guardando...' : 'Guardar teléfono'}</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.botonEliminar, eliminando && styles.botonDeshabilitado]}
+          disabled={eliminando}
+          onPress={confirmarEliminar}
+        >
+          <Text style={styles.botonEliminarTexto}>{eliminando ? 'Eliminando...' : 'Eliminar perfil'}</Text>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -158,4 +192,6 @@ const styles = StyleSheet.create({
   boton: { marginTop: 20, height: 50, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
   botonTexto: { color: COLORS.white, fontWeight: '600', fontSize: 15 },
+  botonEliminar: { marginTop: 12, height: 50, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.error, alignItems: 'center', justifyContent: 'center' },
+  botonEliminarTexto: { color: COLORS.error, fontWeight: '600', fontSize: 15 },
 });

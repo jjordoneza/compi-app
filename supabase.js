@@ -43,6 +43,15 @@ export const ProveedoresSugeridosExt = {
   ...ProveedoresSugeridos,
   listarPorComercio: (comercioId) =>
     fetch(`${SUPABASE_URL}/rest/v1/proveedores_sugeridos?comercio_id=eq.${comercioId}&select=*&order=created_at.desc`, { headers: HEADERS }).then(manejar),
+  // Auto-vinculación por celular+nombre (migración 0032): si hay match de
+  // alta confianza, vincula directo sin pasar por curaduría. Si no, devuelve
+  // un array vacío y el caller cae al flujo normal (crear pendiente).
+  intentarAutoVincular: (payload) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/intentar_auto_vincular_proveedor`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify(payload),
+    }).then(manejar),
 };
 export const ProductosRelacion = tabla('productos_relacion');
 export const Abastecimientos = tabla('abastecimientos');
@@ -70,7 +79,7 @@ export const MisComercios = {
   listar: () =>
     fetch(`${SUPABASE_URL}/rest/v1/comercio_miembros?select=comercios(*)`, { headers: HEADERS })
       .then(manejar)
-      .then((rows) => (rows || []).map((r) => r.comercios).filter(Boolean)),
+      .then((rows) => (rows || []).map((r) => r.comercios).filter((c) => c && c.activo)),
 };
 
 // RPCs de Fase 1 (crean/ligan comercios al usuario autenticado).

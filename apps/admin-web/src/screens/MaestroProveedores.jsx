@@ -35,6 +35,9 @@ function FilaProveedor({ item, onGuardado }) {
     (item.categoria || '').split(',').map((c) => c.trim()).filter(Boolean)
   );
   const [nivelServicio, setNivelServicio] = useState(item.nivel_servicio || 'personal');
+  const [barrio, setBarrio] = useState(item.barrio || '');
+  const [ciudad, setCiudad] = useState(item.ciudad || '');
+  const [direccion, setDireccion] = useState(item.direccion || '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -46,6 +49,9 @@ function FilaProveedor({ item, onGuardado }) {
     setNombre(item.nombre || '');
     setCategorias((item.categoria || '').split(',').map((c) => c.trim()).filter(Boolean));
     setNivelServicio(item.nivel_servicio || 'personal');
+    setBarrio(item.barrio || '');
+    setCiudad(item.ciudad || '');
+    setDireccion(item.direccion || '');
     setError('');
     setEditando(false);
   }
@@ -58,6 +64,9 @@ function FilaProveedor({ item, onGuardado }) {
         nombre: nombre.trim(),
         categoria: categorias.join(', '),
         nivel_servicio: nivelServicio,
+        barrio: barrio.trim() || null,
+        ciudad: ciudad.trim() || null,
+        direccion: direccion.trim() || null,
       });
       setEditando(false);
       await onGuardado();
@@ -89,6 +98,15 @@ function FilaProveedor({ item, onGuardado }) {
           NIVELES_SERVICIO.find((n) => n.value === item.nivel_servicio)?.label || 'Personal (WhatsApp)'
         )}
       </td>
+      <td>
+        {editando ? <input value={ciudad} onChange={(e) => setCiudad(e.target.value)} /> : item.ciudad || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </td>
+      <td>
+        {editando ? <input value={barrio} onChange={(e) => setBarrio(e.target.value)} /> : item.barrio || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </td>
+      <td>
+        {editando ? <input value={direccion} onChange={(e) => setDireccion(e.target.value)} /> : item.direccion || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </td>
       <td className="acciones-cell">
         {error && <span className="error">{error}</span>}
         {editando ? (
@@ -115,6 +133,9 @@ export default function MaestroProveedores() {
   const [error, setError] = useState('');
   const [nombreNuevo, setNombreNuevo] = useState('');
   const [categoriasNuevo, setCategoriasNuevo] = useState([]);
+  const [ciudadNuevo, setCiudadNuevo] = useState('');
+  const [barrioNuevo, setBarrioNuevo] = useState('');
+  const [direccionNuevo, setDireccionNuevo] = useState('');
   const [creando, setCreando] = useState(false);
   const [mostrarCrear, setMostrarCrear] = useState(false);
 
@@ -139,9 +160,18 @@ export default function MaestroProveedores() {
     setCreando(true);
     setError('');
     try {
-      await crearProveedorMaestro({ nombre: nombreNuevo.trim(), categoria: categoriasNuevo.join(', ') });
+      await crearProveedorMaestro({
+        nombre: nombreNuevo.trim(),
+        categoria: categoriasNuevo.join(', '),
+        ciudad: ciudadNuevo.trim() || null,
+        barrio: barrioNuevo.trim() || null,
+        direccion: direccionNuevo.trim() || null,
+      });
       setNombreNuevo('');
       setCategoriasNuevo([]);
+      setCiudadNuevo('');
+      setBarrioNuevo('');
+      setDireccionNuevo('');
       setMostrarCrear(false);
       await cargar();
     } catch (e) {
@@ -172,6 +202,24 @@ export default function MaestroProveedores() {
             style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
           />
           <Chips opciones={CATEGORIAS} seleccion={categoriasNuevo} onToggle={toggleNuevaCategoria} />
+          <input
+            placeholder="Ciudad"
+            value={ciudadNuevo}
+            onChange={(e) => setCiudadNuevo(e.target.value)}
+            style={{ marginTop: 10, marginBottom: 10, width: '100%', maxWidth: 320 }}
+          />
+          <input
+            placeholder="Barrio"
+            value={barrioNuevo}
+            onChange={(e) => setBarrioNuevo(e.target.value)}
+            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
+          />
+          <input
+            placeholder="Dirección"
+            value={direccionNuevo}
+            onChange={(e) => setDireccionNuevo(e.target.value)}
+            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
+          />
           <button
             type="button"
             disabled={creando || !nombreNuevo.trim()}
@@ -193,6 +241,9 @@ export default function MaestroProveedores() {
                 <th>Nombre</th>
                 <th>Categorías</th>
                 <th>Nivel de servicio</th>
+                <th>Ciudad</th>
+                <th>Barrio</th>
+                <th>Dirección</th>
                 <th>Acciones</th>
               </tr>
             </thead>
