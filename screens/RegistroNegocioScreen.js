@@ -70,13 +70,34 @@ export default function RegistroNegocioScreen({ route, navigation }) {
   const [canalAdquisicion, setCanalAdquisicion] = useState('');
   const [proveedoresTotales, setProveedoresTotales] = useState(5);
   const [guardando, setGuardando] = useState(false);
+  // Si el tendero ya creó el comercio y usa "atrás" desde Importar contactos
+  // para volver aquí, no se vuelve a crear otro — se re-navega con el mismo id.
+  const [comercioCreado, setComercioCreado] = useState(null);
 
   function cambiarProveedoresTotales(delta) {
     setProveedoresTotales((prev) => Math.max(0, prev + delta));
   }
 
+  // Todos los campos son obligatorios (decisión de producto, 18 jul 2026) —
+  // antes solo el nombre lo era.
+  const formCompleto =
+    nombre.trim() &&
+    ciudad.trim() &&
+    barrio.trim() &&
+    direccion.trim() &&
+    detalles.trim() &&
+    contactoNombre.trim() &&
+    categoria &&
+    canalAdquisicion;
+
   async function continuar() {
-    if (!nombre.trim()) return;
+    if (!formCompleto) return;
+
+    if (comercioCreado) {
+      navigation.navigate('ImportarContactos', { comercioId: comercioCreado.id, comercioNombre: comercioCreado.nombre });
+      return;
+    }
+
     setGuardando(true);
     try {
       // RPC crear_comercio: crea el comercio y la membresía del usuario atómicamente.
@@ -101,7 +122,10 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         });
       }
       capturarUbicacion(comercio.id); // sin await: no debe demorar la navegación
-      navigation.replace('ImportarContactos', { comercioId: comercio.id, comercioNombre: nombre.trim() });
+      setComercioCreado({ id: comercio.id, nombre: nombre.trim() });
+      // navigate (no replace): así "atrás" desde Importar contactos regresa
+      // aquí en vez de saltar a la pantalla de login.
+      navigation.navigate('ImportarContactos', { comercioId: comercio.id, comercioNombre: nombre.trim() });
     } catch (e) {
       Alert.alert('Error guardando', e.message);
     } finally {
@@ -124,10 +148,10 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         <Text style={styles.label}>Barrio</Text>
         <TextInput style={styles.input} placeholder="Ej. La América" value={barrio} onChangeText={setBarrio} />
 
-        <Text style={styles.label}>Dirección (opcional)</Text>
+        <Text style={styles.label}>Dirección</Text>
         <TextInput style={styles.input} placeholder="Ej. Cra 45 #12-30" value={direccion} onChangeText={setDireccion} />
 
-        <Text style={styles.label}>Detalles de ubicación (opcional)</Text>
+        <Text style={styles.label}>Detalles de ubicación</Text>
         <TextInput
           style={styles.input}
           placeholder="Ej. Apto 302, Torre B, Urb. Los Robles"
@@ -135,7 +159,7 @@ export default function RegistroNegocioScreen({ route, navigation }) {
           onChangeText={setDetalles}
         />
 
-        <Text style={styles.label}>Nombre de quien atiende (opcional)</Text>
+        <Text style={styles.label}>Nombre de quien atiende</Text>
         <TextInput
           style={styles.input}
           placeholder="Ej. Juan Pérez"
@@ -143,10 +167,10 @@ export default function RegistroNegocioScreen({ route, navigation }) {
           onChangeText={setContactoNombre}
         />
 
-        <Text style={styles.label}>Tipo de negocio (opcional)</Text>
+        <Text style={styles.label}>Tipo de negocio</Text>
         <ChipSelector opciones={CATEGORIAS} valor={categoria} onCambiar={setCategoria} />
 
-        <Text style={[styles.label, { marginTop: 4 }]}>¿Cómo llegaste a Compi? (opcional)</Text>
+        <Text style={[styles.label, { marginTop: 4 }]}>¿Cómo llegaste a Compi?</Text>
         <ChipSelector opciones={CANALES_ADQUISICION} valor={canalAdquisicion} onCambiar={setCanalAdquisicion} />
 
         <View style={styles.card}>
@@ -164,8 +188,8 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         </View>
 
         <TouchableOpacity
-          style={[styles.boton, (!nombre.trim() || guardando) && styles.botonDeshabilitado]}
-          disabled={!nombre.trim() || guardando}
+          style={[styles.boton, (!formCompleto || guardando) && styles.botonDeshabilitado]}
+          disabled={!formCompleto || guardando}
           onPress={continuar}
         >
           <Text style={styles.botonTexto}>{guardando ? 'Guardando...' : 'Continuar'}</Text>

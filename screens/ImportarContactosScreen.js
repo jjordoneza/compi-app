@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import * as Contacts from 'expo-contacts';
 import { ProveedoresSugeridos } from '../supabase';
 import { usuarioActual } from '../auth';
@@ -14,6 +14,10 @@ export default function ImportarContactosScreen({ route, navigation }) {
   const [analizando, setAnalizando] = useState(true);
   const [error, setError] = useState(null);
   const [permisoDenegado, setPermisoDenegado] = useState(false);
+  // Una vez el SO deja de mostrar el diálogo de permisos (denegado "para
+  // siempre"), volver a llamar requestPermissionsAsync() no hace nada visible
+  // — hay que mandar al usuario a Ajustes en vez de reintentar en el aire.
+  const [permisoBloqueado, setPermisoBloqueado] = useState(false);
   const [resultados, setResultados] = useState([]); // [{nombre, esProveedor, categoria}]
   const [seleccionados, setSeleccionados] = useState([]);
   const [guardando, setGuardando] = useState(false);
@@ -27,10 +31,12 @@ export default function ImportarContactosScreen({ route, navigation }) {
     setAnalizando(true);
     setError(null);
     setPermisoDenegado(false);
+    setPermisoBloqueado(false);
     try {
-      const { status } = await Contacts.requestPermissionsAsync();
+      const { status, canAskAgain } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
         setPermisoDenegado(true);
+        setPermisoBloqueado(!canAskAgain);
         return;
       }
 
@@ -119,11 +125,18 @@ export default function ImportarContactosScreen({ route, navigation }) {
       <View style={styles.centrado}>
         <Text style={styles.errorTitulo}>Necesitamos ver tus contactos</Text>
         <Text style={styles.errorTexto}>
-          Los usamos solo para ayudarte a marcar cuáles son proveedores. Puedes darnos permiso o seguir sin esto — lo agregas cuando quieras.
+          {permisoBloqueado
+            ? 'Ya rechazaste este permiso antes, así que tu celular no nos deja volver a preguntarte aquí. Actívalo desde Ajustes y vuelve.'
+            : 'Los usamos solo para ayudarte a marcar cuáles son proveedores. Puedes darnos permiso o seguir sin esto — lo agregas cuando quieras.'}
         </Text>
-        <TouchableOpacity style={styles.boton} onPress={analizar}>
-          <Text style={styles.botonTexto}>Dar permiso</Text>
+        <TouchableOpacity style={styles.boton} onPress={permisoBloqueado ? () => Linking.openSettings() : analizar}>
+          <Text style={styles.botonTexto}>{permisoBloqueado ? 'Abrir Ajustes' : 'Dar permiso'}</Text>
         </TouchableOpacity>
+        {permisoBloqueado && (
+          <TouchableOpacity style={[styles.boton, styles.botonSecundario]} onPress={analizar}>
+            <Text style={styles.botonSecundarioTexto}>Ya lo activé, reintentar</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.boton, styles.botonSecundario]}
           onPress={() => navigation.replace('Home', { comercioId, comercioNombre })}

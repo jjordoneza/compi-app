@@ -54,12 +54,11 @@ Generada a partir de una lectura completa del código (21 pantallas RN, 11 panta
 
 ### A4. Registro de negocio
 
-- [ ] Botón "Continuar" deshabilitado con nombre vacío/solo espacios.
-- [ ] Campos opcionales (ciudad, barrio, dirección, detalles, nombre de quien atiende) aceptan vacío sin bloquear.
-- [ ] Chip de "Tipo de negocio" — tocar el mismo chip dos veces lo deselecciona (vuelve a `''`).
-- [ ] Chip de "¿Cómo llegaste a Compi?" — mismo comportamiento de deselección.
+- [ ] **(actualizado 18 jul 2026)** Botón "Continuar" deshabilitado si falta CUALQUIER campo: nombre, ciudad, barrio, dirección, detalles, nombre de quien atiende, categoría y canal de adquisición son todos obligatorios ahora (antes solo el nombre lo era — decisión de producto explícita, ver `docs/gaps-pendientes.md`).
+- [ ] Chip de "Tipo de negocio" — tocar el mismo chip dos veces lo deselecciona (vuelve a `''`) — al deseleccionar, "Continuar" se vuelve a deshabilitar hasta elegir otro.
+- [ ] Chip de "¿Cómo llegaste a Compi?" — mismo comportamiento.
 - [ ] Stepper "¿A cuántos proveedores le compras?" arranca en 5, no baja de 0, sin techo visible hacia arriba (probar que no rompa la UI con un número muy alto).
-- [ ] Guardar negocio exitosamente → navega a Importar contactos (con `replace`, no se puede volver atrás a este formulario).
+- [ ] Guardar negocio exitosamente → navega a Importar contactos (con `navigate`, no `replace` — **cambiado 18 jul 2026** para que "atrás" regrese a este formulario en vez de saltar a Login; si vuelves y tocas "Continuar" de nuevo, reutiliza el mismo comercio ya creado en vez de duplicarlo).
 - [ ] **(GPS)** Con permisos de ubicación concedidos → el comercio termina con `lat`/`lng` (verificar en la tabla, no se le muestra nada al tendero).
 - [ ] **(GPS)** Con permisos denegados → el registro se completa igual, sin alertas ni bloqueos, comercio queda sin `lat`/`lng`.
 - [ ] **(GPS)** Con ubicación en modo avión / GPS apagado → mismo resultado que arriba, sin errores visibles.

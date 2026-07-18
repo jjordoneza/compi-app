@@ -52,7 +52,7 @@ export default function ProveedoresNuevos() {
               <button type="button" className="filaTop" onClick={() => setAbiertoId(abiertoId === s.id ? null : s.id)}>
                 <div>
                   <strong>{s.nombre}</strong>
-                  <p className="sub">{s.categoria || 'Sin categoría'} · {s.canal || 'sin canal'}</p>
+                  <p className="sub">{s.categoria || 'Sin categoría'} · {s.canal || 'sin canal'} · <span className="pillPendiente">Pendiente</span></p>
                   <p className="sub">{s.comercios?.nombre} — {s.comercios?.barrio}</p>
                 </div>
                 <span className="fecha">{new Date(s.created_at).toLocaleDateString('es-CO')}</span>

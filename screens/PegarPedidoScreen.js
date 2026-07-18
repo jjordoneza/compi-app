@@ -40,8 +40,10 @@ export default function PegarPedidoScreen({ route, navigation }) {
   const faltaConfirmar = (detectados || []).some((item, i) => item.coincidencia && !confirmaciones[i]);
 
   function actualizarCantidad(index, delta) {
+    // Mínimo 1: un ítem con cantidad 0 no tiene sentido guardarlo — para
+    // quitarlo del todo está el botón "Quitar".
     setDetectados((prev) =>
-      prev.map((p, i) => (i === index ? { ...p, cantidad: Math.max(0, p.cantidad + delta) } : p))
+      prev.map((p, i) => (i === index ? { ...p, cantidad: Math.max(1, p.cantidad + delta) } : p))
     );
   }
 

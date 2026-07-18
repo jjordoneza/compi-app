@@ -38,6 +38,12 @@ export const ProductosMaestro = tabla('productos_maestro');
 // Ver docs/gap2-plan-roles-rls.md y supabase/migrations/0003 y 0007.
 export const ProveedoresSugeridos = tabla('proveedores_sugeridos');
 export const ProductosSugeridos = tabla('productos_sugeridos');
+
+export const ProveedoresSugeridosExt = {
+  ...ProveedoresSugeridos,
+  listarPorComercio: (comercioId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/proveedores_sugeridos?comercio_id=eq.${comercioId}&select=*&order=created_at.desc`, { headers: HEADERS }).then(manejar),
+};
 export const ProductosRelacion = tabla('productos_relacion');
 export const Abastecimientos = tabla('abastecimientos');
 export const Pedidos = tabla('pedidos');

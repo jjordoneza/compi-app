@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
-import { ProveedoresMaestro, RelacionesExt, PedidosExt, SugerenciasCambio, SugerenciasCambioExt } from '../../supabase';
+import { ProveedoresMaestro, RelacionesExt, PedidosExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresSugeridosExt } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
 
 const ETIQUETAS_SUG = { pendiente: 'Pendiente', aprobada: 'Aprobado', rechazada: 'Rechazado' };
+// proveedores_sugeridos usa 'aprobado'/'rechazado' (sin la 'a' de género),
+// distinto de sugerencias_cambio_proveedor ('aprobada'/'rechazada') — mismo
+// componente de pill, etiquetas separadas para no mezclar los dos estados.
+const ETIQUETAS_PROVEEDOR_SUGERIDO = { pendiente: 'Pendiente', aprobado: 'Aprobado', rechazado: 'Rechazado' };
 
 export default function ProveedoresTabScreen({ navigation, route }) {
   const { comercioId, comercioNombre } = route.params || {};
   const [relacionesLista, setRelacionesLista] = useState([]);
   const [sugerencias, setSugerencias] = useState([]);
+  // Proveedores que este comercio propuso (vía Importar contactos) y todavía
+  // no están vinculados — antes no se veía su estado en ningún lado de la app.
+  const [proveedoresPropuestos, setProveedoresPropuestos] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [eliminandoId, setEliminandoId] = useState(null);
 
@@ -34,6 +41,10 @@ export default function ProveedoresTabScreen({ navigation, route }) {
       const todos = await ProveedoresMaestro.listar();
       const sugs = await SugerenciasCambioExt.listarPorComercio(comercioId);
       setSugerencias(sugs);
+      const propuestos = await ProveedoresSugeridosExt.listarPorComercio(comercioId);
+      // Una vez aprobado, el proveedor ya aparece en la lista principal de abajo
+      // (vinculado) — mostrarlo también aquí sería redundante.
+      setProveedoresPropuestos(propuestos.filter((p) => p.estado !== 'aprobado'));
       setRelacionesLista(
         relaciones
           .filter((r) => r.activo)
@@ -159,6 +170,26 @@ export default function ProveedoresTabScreen({ navigation, route }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 18, paddingTop: 60, paddingBottom: 40 }}>
       <Text style={styles.titulo}>Mis proveedores</Text>
+
+      {proveedoresPropuestos.length > 0 && (
+        <View style={styles.propuestosBox}>
+          <Text style={styles.propuestosTitulo}>Proveedores que enviaste a revisión</Text>
+          {proveedoresPropuestos.map((p) => (
+            <View key={p.id} style={styles.propuestoFila}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.propuestoNombre}>{p.nombre}</Text>
+                {p.estado === 'rechazado' && p.motivo_rechazo && (
+                  <Text style={styles.propuestoMotivo}>Motivo: {p.motivo_rechazo}</Text>
+                )}
+              </View>
+              <View style={[styles.pillEstado, styles[`pill_${p.estado === 'aprobado' ? 'aprobada' : p.estado === 'rechazado' ? 'rechazada' : 'pendiente'}`]]}>
+                <Text style={styles.pillEstadoTexto}>{ETIQUETAS_PROVEEDOR_SUGERIDO[p.estado]}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
       <TextInput style={styles.buscador} placeholder="Buscar proveedor..." value={busqueda} onChangeText={setBusqueda} />
 
       {filtrados.length === 0 && <Text style={styles.vacio}>No tienes proveedores todavía</Text>}
@@ -296,6 +327,11 @@ const styles = StyleSheet.create({
   botonMiniCancelar: { paddingVertical: 9, paddingHorizontal: 8 },
   botonMiniCancelarTexto: { color: COLORS.textSecondary, fontSize: 12 },
   vacio: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 8, marginBottom: 8, fontSize: 12 },
+  propuestosBox: { backgroundColor: COLORS.white, borderRadius: RADIUS.md, padding: 12, marginBottom: 14, borderWidth: 0.5, borderColor: COLORS.borderLight },
+  propuestosTitulo: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8, textTransform: 'uppercase' },
+  propuestoFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+  propuestoNombre: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  propuestoMotivo: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   boton: { marginTop: 10, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonTexto: { color: COLORS.white, fontWeight: '600' },
 });
