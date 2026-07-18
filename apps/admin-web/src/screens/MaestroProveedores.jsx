@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { listarProveedoresMaestro, crearProveedorMaestro, actualizarProveedorMaestro } from '../api';
+import { listarProveedoresMaestro, crearProveedorMaestro, actualizarProveedorMaestro, listarStatsPorProveedor } from '../api';
 
 const CATEGORIAS = [
   'Huevos', 'Lácteos', 'Bebidas', 'Snacks', 'Aseo',
@@ -11,6 +11,14 @@ const NIVELES_SERVICIO = [
   { value: 'compi', label: 'Compi (panel)' },
   { value: 'enterprise', label: 'Enterprise (API)' },
 ];
+
+// Proxy de "calidad" por volumen en la red (sin señales reales de calidad
+// todavía) — umbrales provisionales, recalibrables sin tocar el backend.
+function etiquetaAdopcion(nTiendasActivas) {
+  if (nTiendasActivas >= 5) return { texto: 'Alta adopción', clase: 'pillAlta' };
+  if (nTiendasActivas >= 2) return { texto: 'Adopción media', clase: 'pillMedia' };
+  return { texto: 'Nuevo / baja adopción', clase: 'pillBaja' };
+}
 
 function Chips({ opciones, seleccion, onToggle }) {
   return (
@@ -28,7 +36,7 @@ function Chips({ opciones, seleccion, onToggle }) {
   );
 }
 
-function FilaProveedor({ item, onGuardado }) {
+function FilaProveedor({ item, stats, onGuardado }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(item.nombre || '');
   const [categorias, setCategorias] = useState(
@@ -38,6 +46,8 @@ function FilaProveedor({ item, onGuardado }) {
   const [barrio, setBarrio] = useState(item.barrio || '');
   const [ciudad, setCiudad] = useState(item.ciudad || '');
   const [direccion, setDireccion] = useState(item.direccion || '');
+  const [contactoNombre, setContactoNombre] = useState(item.contacto_nombre || '');
+  const [telefonoSecundario, setTelefonoSecundario] = useState(item.telefono_secundario || '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -52,6 +62,8 @@ function FilaProveedor({ item, onGuardado }) {
     setBarrio(item.barrio || '');
     setCiudad(item.ciudad || '');
     setDireccion(item.direccion || '');
+    setContactoNombre(item.contacto_nombre || '');
+    setTelefonoSecundario(item.telefono_secundario || '');
     setError('');
     setEditando(false);
   }
@@ -67,6 +79,8 @@ function FilaProveedor({ item, onGuardado }) {
         barrio: barrio.trim() || null,
         ciudad: ciudad.trim() || null,
         direccion: direccion.trim() || null,
+        contacto_nombre: contactoNombre.trim() || null,
+        telefono_secundario: telefonoSecundario.trim() || null,
       });
       setEditando(false);
       await onGuardado();
@@ -107,6 +121,21 @@ function FilaProveedor({ item, onGuardado }) {
       <td>
         {editando ? <input value={direccion} onChange={(e) => setDireccion(e.target.value)} /> : item.direccion || <span style={{ color: 'var(--text-muted)' }}>—</span>}
       </td>
+      <td>
+        {editando ? <input value={contactoNombre} onChange={(e) => setContactoNombre(e.target.value)} /> : item.contacto_nombre || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </td>
+      <td>{item.telefono || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+      <td>
+        {editando ? <input value={telefonoSecundario} onChange={(e) => setTelefonoSecundario(e.target.value)} /> : item.telefono_secundario || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </td>
+      <td className="mono">{stats?.n_productos ?? 0}</td>
+      <td className="mono">{stats?.n_pedidos ?? 0}</td>
+      <td>
+        {(() => {
+          const { texto, clase } = etiquetaAdopcion(stats?.n_tiendas_activas ?? 0);
+          return <span className={clase}>{texto}</span>;
+        })()}
+      </td>
       <td className="acciones-cell">
         {error && <span className="error">{error}</span>}
         {editando ? (
@@ -130,6 +159,7 @@ function FilaProveedor({ item, onGuardado }) {
 
 export default function MaestroProveedores() {
   const [proveedores, setProveedores] = useState(null);
+  const [stats, setStats] = useState({}); // proveedor_id -> { n_productos, n_pedidos }
   const [error, setError] = useState('');
   const [nombreNuevo, setNombreNuevo] = useState('');
   const [categoriasNuevo, setCategoriasNuevo] = useState([]);
@@ -141,7 +171,9 @@ export default function MaestroProveedores() {
 
   async function cargar() {
     try {
-      setProveedores(await listarProveedoresMaestro());
+      const [lista, statsLista] = await Promise.all([listarProveedoresMaestro(), listarStatsPorProveedor()]);
+      setProveedores(lista);
+      setStats(Object.fromEntries(statsLista.map((s) => [s.proveedor_id, s])));
     } catch (e) {
       setError(e.message);
     }
@@ -244,12 +276,18 @@ export default function MaestroProveedores() {
                 <th>Ciudad</th>
                 <th>Barrio</th>
                 <th>Dirección</th>
+                <th>Contacto</th>
+                <th>Celular</th>
+                <th>Celular 2</th>
+                <th># productos</th>
+                <th># pedidos</th>
+                <th>Adopción</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {proveedores.map((item) => (
-                <FilaProveedor key={item.id} item={item} onGuardado={cargar} />
+                <FilaProveedor key={item.id} item={item} stats={stats[item.id]} onGuardado={cargar} />
               ))}
             </tbody>
           </table>

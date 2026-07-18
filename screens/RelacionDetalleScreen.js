@@ -82,7 +82,6 @@ export default function RelacionDetalleScreen({ route, navigation }) {
   // teléfono deja de leer relacion.telefono_contacto (eso sigue siendo "Mi
   // contacto con este proveedor" en ProveedoresTabScreen, sin tocar) y pasa a
   // mostrar el número oficial de proveedores_maestro.
-  const [contactoNombre, setContactoNombre] = useState('');
   const [direccionLocal, setDireccionLocal] = useState('');
   const [proveedorMaestro, setProveedorMaestro] = useState(null);
   const [entregaEnTienda, setEntregaEnTienda] = useState(true);
@@ -106,7 +105,6 @@ export default function RelacionDetalleScreen({ route, navigation }) {
       setProductosMaestro(prodMaestro);
       setRelacionInfo(relacion);
       if (relacion) {
-        setContactoNombre(relacion.contacto_nombre || '');
         setDireccionLocal(relacion.direccion_entrega || '');
         setEntregaEnTienda(relacion.entrega_en_tienda ?? true);
         setDiasPedido(relacion.dias_pedido || '');
@@ -319,10 +317,17 @@ export default function RelacionDetalleScreen({ route, navigation }) {
             <Text style={styles.labelSoloLectura}>Estos datos los define Compi — solo puedes verlos aquí.</Text>
 
             <Text style={styles.label}>Nombre del contacto</Text>
-            <Text style={styles.valorSoloLectura}>{contactoNombre || '—'}</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.contacto_nombre || '—'}</Text>
 
             <Text style={styles.label}>Teléfono</Text>
             <Text style={styles.valorSoloLectura}>{proveedorMaestro?.telefono || '—'}</Text>
+
+            {proveedorMaestro?.telefono_secundario && (
+              <>
+                <Text style={styles.label}>Teléfono 2</Text>
+                <Text style={styles.valorSoloLectura}>{proveedorMaestro.telefono_secundario}</Text>
+              </>
+            )}
 
             <Text style={styles.label}>Dirección de entrega</Text>
             <Text style={styles.valorSoloLectura}>{direccionLocal || '—'}</Text>
