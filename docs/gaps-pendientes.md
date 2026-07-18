@@ -110,6 +110,8 @@ El usuario corrió `0028`-`0034` a mano y reportó 2 errores (ninguna de las dos
 
 Como ninguna de las dos migraciones llegó a aplicarse nunca, se corrigieron los archivos `0029`/`0034` (y sus rollbacks) en el mismo lugar, no con parches nuevos.
 
+**Segunda vuelta en `0029`**: el primer fix solo contempló `v_cadencia_producto`. Postgres siguió bloqueando el `ALTER` porque `v_cobertura_proveedor` y `v_patron_dia_proveedor` (ambas materializadas, migración `0010`) y `v_patron_dia_dominante` (vista regular que depende de `v_patron_dia_proveedor`) también dependen de `abastecimientos.fecha`. Se agregaron a la cadena de drop/recreate, en orden de dependencia, junto con sus índices únicos (necesarios para el `REFRESH CONCURRENTLY` que ya corre por `pg_cron`).
+
 ## Pendientes ya registrados de conversaciones anteriores (no son de esta revisión, se listan para no perderlos)
 
 - **Términos de uso / política de privacidad**: pendiente diseñar antes de lanzar a tenderos reales — `ImportarContactosScreen` envía contactos reales (nombres de terceros) a la API de Anthropic vía `ai-proxy` para clasificación.
