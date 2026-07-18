@@ -73,8 +73,13 @@ el dashboard de Supabase (Edge Functions):
 
 ## Builds (EAS)
 
-La configuración está en `eas.json` y el proyecto está enlazado en `app.json`
-(`extra.eas.projectId`, slug `compi`, owner `jj-tecnologia-sas`). Perfiles:
+La configuración está en `eas.json` y el proyecto está enlazado en
+`app.config.js` (`extra.eas.projectId`, slug `compi`, owner `jj-tecnologia-sas`).
+Es `app.config.js` y no `app.json` a propósito: la API key de Google Maps
+(`android.config.googleMaps.apiKey`) se lee de `process.env.GOOGLE_MAPS_API_KEY_ANDROID`
+— un JSON estático no puede hacer eso. Esa variable se define en el
+dashboard de EAS (proyecto → Environment variables), marcada como
+"Sensitive", no en el repo. Perfiles:
 
 - **preview** → genera un `.apk` instalable directo (sideload), distribución interna.
 - **production** → app bundle para tienda, con versionado remoto autoincremental.
