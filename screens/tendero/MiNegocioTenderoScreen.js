@@ -132,7 +132,7 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={90}>
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
         <Text style={styles.titulo}>Mi negocio</Text>
         <Text style={styles.subtitulo}>Desde aquí solo puedes actualizar tu teléfono de contacto. Para corregir el resto de tus datos, contacta a soporte.</Text>

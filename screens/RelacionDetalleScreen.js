@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Switch, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt, PrecioReferencia } from '../supabase';
+import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt } from '../supabase';
 import { COLORS, RADIUS, formatMoney, textoPrecioUnitario } from '../theme';
-import { UMBRAL_DESVIACION_PRECIO, UMBRAL_PRECIO_VIEJO_DIAS } from '../constants';
+import { UMBRAL_PRECIO_VIEJO_DIAS } from '../constants';
 
 function limpiarNumero(texto) {
   const soloDigitos = texto.replace(/[^0-9]/g, '');
@@ -74,7 +74,6 @@ export default function RelacionDetalleScreen({ route, navigation }) {
 
   const [editandoId, setEditandoId] = useState(null);
   const [precioEditado, setPrecioEditado] = useState('');
-  const [precioReferenciaActual, setPrecioReferenciaActual] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
   const [contactoNombre, setContactoNombre] = useState('');
@@ -219,29 +218,19 @@ export default function RelacionDetalleScreen({ route, navigation }) {
     }
   }
 
-  // Sin precio: prellena con la mediana de la red si existe (valor inicial
-  // editable). Con precio: no lo pisa, pero igual trae la referencia para el
-  // chequeo de sanidad al guardar.
-  async function empezarEdicionPrecio(item) {
+  // Decisión de producto (18 jul 2026): el tendero nunca ve la mediana de
+  // red — genera fricción con su negociación propia con el proveedor (y
+  // expone al proveedor si el tendero nota que paga distinto a otros). La
+  // RPC precio_referencia se deja intacta para posible uso interno futuro,
+  // simplemente esta pantalla ya no la llama.
+  function empezarEdicionPrecio(item) {
     setEditandoId(item.id);
     setPrecioEditado(item.precio_pactado != null ? String(item.precio_pactado) : '');
-    setPrecioReferenciaActual(null);
-
-    if (!relacionInfo) return;
-    try {
-      const ref = await PrecioReferencia.obtener(relacionInfo.comercio_id, relacionInfo.proveedor_id, item.producto_id);
-      if (ref && ref.mediana != null) {
-        setPrecioReferenciaActual(ref.mediana);
-        if (item.precio_pactado == null) {
-          setPrecioEditado(String(Math.round(ref.mediana)));
-        }
-      }
-    } catch {
-      // Referencia es una ayuda — nunca bloquea poder teclear el precio a mano.
-    }
   }
 
-  async function guardarPrecioConfirmado(item, nuevoPrecio) {
+  async function guardarPrecio(item) {
+    if (guardando) return;
+    const nuevoPrecio = limpiarNumero(precioEditado);
     setGuardando(true);
     try {
       await ProductosRelacionExt.actualizar(item.id, { precio_pactado: nuevoPrecio });
@@ -250,34 +239,11 @@ export default function RelacionDetalleScreen({ route, navigation }) {
         prev.map((pr) => (pr.id === item.id ? { ...pr, precio_pactado: nuevoPrecio, precio_actualizado_en: new Date().toISOString() } : pr))
       );
       setEditandoId(null);
-      setPrecioReferenciaActual(null);
     } catch (e) {
       Alert.alert('Error actualizando', e.message);
     } finally {
       setGuardando(false);
     }
-  }
-
-  // Chequeo de sanidad, nunca bloquea: precio muy distinto a la mediana de la
-  // red (en cualquier dirección) pide confirmación antes de guardar.
-  async function guardarPrecio(item) {
-    if (guardando) return;
-    const nuevoPrecio = limpiarNumero(precioEditado);
-    if (nuevoPrecio != null && precioReferenciaActual != null) {
-      const desviacion = Math.abs(nuevoPrecio - precioReferenciaActual) / precioReferenciaActual;
-      if (desviacion > UMBRAL_DESVIACION_PRECIO) {
-        Alert.alert(
-          'Precio distinto a lo usual',
-          `Otros tenderos le pagan aproximadamente $${formatMoney(Math.round(precioReferenciaActual))} a este proveedor por esto. ¿Confirmas $${formatMoney(nuevoPrecio)}?`,
-          [
-            { text: 'Corregir', style: 'cancel' },
-            { text: 'Confirmar', onPress: () => guardarPrecioConfirmado(item, nuevoPrecio) },
-          ]
-        );
-        return;
-      }
-    }
-    await guardarPrecioConfirmado(item, nuevoPrecio);
   }
 
   function confirmarEliminar(item, prod) {
@@ -329,7 +295,7 @@ export default function RelacionDetalleScreen({ route, navigation }) {
   const mostrarFooterAgregar = mostrarPicker && seleccionados.length > 0;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={90}>
       <View style={{ flex: 1 }}>
       <ScrollView
         style={styles.container}
@@ -420,14 +386,11 @@ export default function RelacionDetalleScreen({ route, navigation }) {
                       value={precioEditado}
                       onChangeText={setPrecioEditado}
                     />
-                    {precioReferenciaActual != null && (
-                      <Text style={styles.textoReferencia}>Otros tenderos pagan ~${formatMoney(Math.round(precioReferenciaActual))}</Text>
-                    )}
                   </View>
                   <TouchableOpacity style={styles.botonMini} disabled={guardando} onPress={() => guardarPrecio(item)}>
                     <Text style={styles.botonMiniTexto}>{guardando ? 'Guardando...' : 'Guardar'}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => { setEditandoId(null); setPrecioReferenciaActual(null); }}>
+                  <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setEditandoId(null)}>
                     <Text style={styles.botonMiniCancelarTexto}>Cancelar</Text>
                   </TouchableOpacity>
                 </View>
@@ -573,7 +536,6 @@ const styles = StyleSheet.create({
   avisoPrecio: { marginTop: 8, backgroundColor: COLORS.warningBg, borderRadius: RADIUS.sm, padding: 8 },
   avisoPrecioTexto: { fontSize: 11, color: COLORS.warning, lineHeight: 15 },
   avisoPrecioViejo: { fontSize: 11, color: COLORS.warning, fontWeight: '600', marginTop: 8 },
-  textoReferencia: { fontSize: 10, color: COLORS.textSecondary, marginTop: 4 },
   chipsFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   labelFiltro: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4, textTransform: 'uppercase' },
   chip: { paddingHorizontal: 14, height: 40, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },

@@ -240,8 +240,10 @@ export const ProductosMaestroExt = {
 };
 
 // Mediana de precio_pactado de OTROS comercios para un proveedor+producto en
-// toda la red (migración 0026). null si hay menos de 3 comercios con
-// evidencia — el cliente lo trata como "sin referencia todavía".
+// toda la red (migración 0026). Decisión de producto (18 jul 2026): dejó de
+// mostrarse al tendero (generaba fricción con su negociación con el
+// proveedor) — ninguna pantalla la llama hoy. Se deja el wrapper por si se
+// usa para algo interno/admin más adelante; la RPC sigue viva en el backend.
 export const PrecioReferencia = {
   obtener: (comercioId, proveedorId, productoId) =>
     fetch(`${SUPABASE_URL}/rest/v1/rpc/precio_referencia`, {

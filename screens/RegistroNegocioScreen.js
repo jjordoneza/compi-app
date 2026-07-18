@@ -140,7 +140,7 @@ export default function RegistroNegocioScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 70, paddingHorizontal: 26, paddingBottom: 40 }}>
         <Text style={styles.titulo}>Cuéntanos de tu negocio</Text>
         <Text style={styles.subtitulo}>Así podemos ayudarte a organizar mejor tus pedidos.</Text>
