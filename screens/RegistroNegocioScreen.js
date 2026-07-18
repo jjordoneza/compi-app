@@ -40,21 +40,19 @@ function ChipSelector({ opciones, valor, onCambiar }) {
   );
 }
 
-// Sin pantalla propia, nunca bloquea el registro: si el permiso se niega o
-// la captura falla, el comercio simplemente queda sin coordenadas — el motor
+// Nunca bloquea el registro: si el permiso se niega o la captura falla,
+// devuelve null y el comercio simplemente queda sin coordenadas — el motor
 // de cobertura de proveedores ya está diseñado para ese caso (cae a
-// matching por barrio). No se le muestra nada de esto al tendero.
-async function capturarUbicacion(comercioId) {
+// matching por barrio). El guardado real ya no pasa aquí — lo hace
+// ConfirmarUbicacionScreen después de que el tendero confirme/ajuste el pin.
+async function capturarUbicacion() {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return;
+    if (status !== 'granted') return null;
     const posicion = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    await ComerciosExt.actualizar(comercioId, {
-      lat: posicion.coords.latitude,
-      lng: posicion.coords.longitude,
-    });
+    return { lat: posicion.coords.latitude, lng: posicion.coords.longitude };
   } catch (e) {
-    // Silencioso a propósito.
+    return null; // silencioso a propósito
   }
 }
 
@@ -121,11 +119,19 @@ export default function RegistroNegocioScreen({ route, navigation }) {
           canal_adquisicion: canalAdquisicion || null,
         });
       }
-      capturarUbicacion(comercio.id); // sin await: no debe demorar la navegación
       setComercioCreado({ id: comercio.id, nombre: nombre.trim() });
-      // navigate (no replace): así "atrás" desde Importar contactos regresa
-      // aquí en vez de saltar a la pantalla de login.
-      navigation.navigate('ImportarContactos', { comercioId: comercio.id, comercioNombre: nombre.trim() });
+      const coords = await capturarUbicacion();
+      // navigate (no replace): así "atrás" regresa aquí en vez de saltar a Login.
+      if (coords) {
+        navigation.navigate('ConfirmarUbicacion', {
+          comercioId: comercio.id,
+          comercioNombre: nombre.trim(),
+          lat: coords.lat,
+          lng: coords.lng,
+        });
+      } else {
+        navigation.navigate('ImportarContactos', { comercioId: comercio.id, comercioNombre: nombre.trim() });
+      }
     } catch (e) {
       Alert.alert('Error guardando', e.message);
     } finally {

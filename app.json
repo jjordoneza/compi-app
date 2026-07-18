@@ -38,6 +38,12 @@
         {
           "locationWhenInUsePermission": "Compi usa tu ubicación al crear tu negocio para ayudarte a encontrar proveedores que sí cubren tu zona. No se te muestra ni se comparte con nadie."
         }
+      ],
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "REEMPLAZA_CON_TU_API_KEY_DE_GOOGLE_MAPS_ANDROID"
+        }
       ]
     ],
     "runtimeVersion": {
