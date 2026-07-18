@@ -130,15 +130,18 @@ Deno.serve(async (req: Request) => {
     } else if (accion === 'extraer-productos') {
       if (typeof textoPedido !== 'string') throw new Error('textoPedido es requerido');
       resultado = await llamarClaude(promptExtraerProductos(textoPedido));
-      // Solo busca coincidencia con unidad_base conocida — el diseño exige
-      // nunca adivinar la unidad, y sin ella el filtro de buscar_producto_similar
-      // no puede descartar falsos positivos entre presentaciones distintas.
+      // Antes se saltaba la búsqueda por completo si el LLM no devolvía
+      // unidad_base (frecuente: el prompt le pide ser conservador con eso) —
+      // en la práctica casi ningún producto llegaba a mostrar la tarjeta de
+      // coincidencia. buscar_producto_similar ya tolera unidad_base nula en
+      // cualquiera de los dos lados (migración 0025), así que se llama
+      // siempre; el umbral de similitud de nombre (0.35) sigue siendo el
+      // filtro real contra falsos positivos.
       resultado = await Promise.all(
         resultado.map(async (item: Record<string, unknown>) => {
-          if (!item.unidad_base) return { ...item, coincidencia: null };
           const candidatos = await buscarSimilar('buscar_producto_similar', {
             p_nombre: item.nombre,
-            p_unidad_base: item.unidad_base,
+            p_unidad_base: item.unidad_base ?? null,
           });
           return { ...item, coincidencia: candidatos[0] || null };
         })

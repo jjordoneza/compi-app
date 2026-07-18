@@ -32,12 +32,35 @@ function tabla(nombre) {
 
 export const Comercios = tabla('comercios');
 export const ProveedoresMaestro = tabla('proveedores_maestro');
+
+export const ProveedoresMaestroExt = {
+  ...ProveedoresMaestro,
+  obtenerPorId: (id) =>
+    fetch(`${SUPABASE_URL}/rest/v1/proveedores_maestro?id=eq.${id}&select=*`, { headers: HEADERS })
+      .then(manejar)
+      .then((rows) => (rows && rows[0]) || null),
+};
 export const Relaciones = tabla('relaciones');
 export const ProductosMaestro = tabla('productos_maestro');
 // Colas de curaduría (gap #2 Fase 3): el tendero propone, el admin aprueba.
 // Ver docs/gap2-plan-roles-rls.md y supabase/migrations/0003 y 0007.
 export const ProveedoresSugeridos = tabla('proveedores_sugeridos');
 export const ProductosSugeridos = tabla('productos_sugeridos');
+
+export const ProveedoresSugeridosExt = {
+  ...ProveedoresSugeridos,
+  listarPorComercio: (comercioId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/proveedores_sugeridos?comercio_id=eq.${comercioId}&select=*&order=created_at.desc`, { headers: HEADERS }).then(manejar),
+  // Auto-vinculación por celular+nombre (migración 0032): si hay match de
+  // alta confianza, vincula directo sin pasar por curaduría. Si no, devuelve
+  // un array vacío y el caller cae al flujo normal (crear pendiente).
+  intentarAutoVincular: (payload) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/intentar_auto_vincular_proveedor`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify(payload),
+    }).then(manejar),
+};
 export const ProductosRelacion = tabla('productos_relacion');
 export const Abastecimientos = tabla('abastecimientos');
 export const Pedidos = tabla('pedidos');
@@ -64,7 +87,7 @@ export const MisComercios = {
   listar: () =>
     fetch(`${SUPABASE_URL}/rest/v1/comercio_miembros?select=comercios(*)`, { headers: HEADERS })
       .then(manejar)
-      .then((rows) => (rows || []).map((r) => r.comercios).filter(Boolean)),
+      .then((rows) => (rows || []).map((r) => r.comercios).filter((c) => c && c.activo)),
 };
 
 // RPCs de Fase 1 (crean/ligan comercios al usuario autenticado).
@@ -225,8 +248,10 @@ export const ProductosMaestroExt = {
 };
 
 // Mediana de precio_pactado de OTROS comercios para un proveedor+producto en
-// toda la red (migración 0026). null si hay menos de 3 comercios con
-// evidencia — el cliente lo trata como "sin referencia todavía".
+// toda la red (migración 0026). Decisión de producto (18 jul 2026): dejó de
+// mostrarse al tendero (generaba fricción con su negociación con el
+// proveedor) — ninguna pantalla la llama hoy. Se deja el wrapper por si se
+// usa para algo interno/admin más adelante; la RPC sigue viva en el backend.
 export const PrecioReferencia = {
   obtener: (comercioId, proveedorId, productoId) =>
     fetch(`${SUPABASE_URL}/rest/v1/rpc/precio_referencia`, {

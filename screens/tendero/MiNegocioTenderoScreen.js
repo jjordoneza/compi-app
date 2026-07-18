@@ -3,32 +3,21 @@ import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, KeyboardAvo
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ComerciosExt, SugerenciasCambioComercioExt } from '../../supabase';
 import { usuarioActual } from '../../auth';
-import { useComercioActual } from '../../comercioActual';
 import { COLORS, RADIUS } from '../../theme';
 
-const CATEGORIAS = [
-  { value: 'tienda_barrio', label: 'Tienda de barrio' },
-  { value: 'panaderia', label: 'Panadería' },
-  { value: 'licorera', label: 'Licorera' },
-  { value: 'minimarket', label: 'Minimarket' },
-  { value: 'otro', label: 'Otro' },
-];
+const CATEGORIAS_LABEL = {
+  tienda_barrio: 'Tienda de barrio',
+  panaderia: 'Panadería',
+  licorera: 'Licorera',
+  minimarket: 'Minimarket',
+  otro: 'Otro',
+};
 
-function ChipSelector({ opciones, valor, onCambiar }) {
+function CampoSoloLectura({ label, valor }) {
   return (
-    <View style={styles.chipsFila}>
-      {opciones.map((op) => {
-        const activo = valor === op.value;
-        return (
-          <TouchableOpacity
-            key={op.value}
-            style={[styles.chip, activo && styles.chipActivo]}
-            onPress={() => onCambiar(activo ? '' : op.value)}
-          >
-            <Text style={[styles.chipTexto, activo && styles.chipTextoActivo]}>{op.label}</Text>
-          </TouchableOpacity>
-        );
-      })}
+    <View style={styles.campoSoloLectura}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.valorSoloLectura}>{valor || '—'}</Text>
     </View>
   );
 }
@@ -36,12 +25,16 @@ function ChipSelector({ opciones, valor, onCambiar }) {
 // Edición del propio negocio del tendero — distinta de screens/MiNegocioScreen.js
 // (esa es una herramienta de admin que lista/crea/borra TODOS los comercios).
 // Esta pantalla solo lee y edita el comercioId del tendero logueado.
+//
+// Decisión de producto (18 jul 2026): esta pantalla solo deja editar el
+// teléfono de contacto. El resto de datos del negocio se muestra de solo
+// lectura — para corregirlos hace falta el panel de admin (Maestro negocios).
 export default function MiNegocioTenderoScreen({ route, navigation }) {
   const { comercioId } = route.params;
   const insets = useSafeAreaInsets();
-  const { setComercioActual } = useComercioActual();
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
   const [nombre, setNombre] = useState('');
   const [ciudad, setCiudad] = useState('');
   const [barrio, setBarrio] = useState('');
@@ -49,9 +42,6 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   const [detalles, setDetalles] = useState('');
   const [contactoNombre, setContactoNombre] = useState('');
   const [categoria, setCategoria] = useState('');
-  // Solo el teléfono de contacto pasa por aprobación admin
-  // (sugerencias_cambio_comercio) — el resto, incluido nombre de quien
-  // atiende, es autoservicio directo.
   const [telefono, setTelefono] = useState('');
   const [telefonoOriginal, setTelefonoOriginal] = useState('');
   const [pendiente, setPendiente] = useState(null);
@@ -85,42 +75,47 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
     }
   }
 
+  const telefonoCambio = telefono.trim() !== (telefonoOriginal || '');
+
+  function confirmarEliminar() {
+    Alert.alert(
+      'Eliminar perfil',
+      `¿Eliminar "${nombre}"? Se quita de tu lista de negocios — tu historial de pedidos queda intacto por si lo necesitas después. Puedes seguir usando tus otros negocios si tienes más de uno.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: eliminarPerfil },
+      ]
+    );
+  }
+
+  async function eliminarPerfil() {
+    setEliminando(true);
+    try {
+      await ComerciosExt.actualizar(comercioId, { activo: false });
+      // Splash decide a dónde ir según cuántos comercios activos le quedan al
+      // usuario (0 → registro, 1 → Home, 2+ → seleccionar) — reusa esa lógica
+      // en vez de duplicarla aquí.
+      navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });
+    } catch (e) {
+      Alert.alert('Error eliminando', e.message);
+      setEliminando(false);
+    }
+  }
+
   async function guardar() {
-    if (!nombre.trim()) return;
+    if (!telefonoCambio) return;
     setGuardando(true);
     try {
-      await ComerciosExt.actualizar(comercioId, {
-        nombre: nombre.trim(),
-        ciudad: ciudad.trim() || null,
-        barrio: barrio.trim() || null,
-        direccion: direccion.trim() || null,
-        detalles: detalles.trim() || null,
-        contacto_nombre: contactoNombre.trim() || null,
-        categoria: categoria || null,
+      await SugerenciasCambioComercioExt.crear({
+        comercio_id: comercioId,
+        sugerido_por: usuarioActual()?.id || null,
+        telefono_sugerido: telefono.trim(),
       });
-
-      const telefonoCambio = telefono.trim() !== (telefonoOriginal || '');
-      if (telefonoCambio) {
-        await SugerenciasCambioComercioExt.crear({
-          comercio_id: comercioId,
-          sugerido_por: usuarioActual()?.id || null,
-          telefono_sugerido: telefono.trim(),
-        });
-      }
-
-      // Actualiza el Context ya mismo — así Inicio y Perfil muestran el nombre
-      // nuevo sin necesidad de que esas tabs vuelvan a tener foco.
-      setComercioActual({ comercioNombre: nombre.trim() });
-
-      if (telefonoCambio) {
-        Alert.alert(
-          'Guardado',
-          'Tus datos se actualizaron. El cambio de teléfono de contacto quedó enviado a revisión.',
-          [{ text: 'Entendido', onPress: () => navigation.navigate('Home', { screen: 'PerfilTab', params: { comercioId, comercioNombre: nombre.trim() } }) }]
-        );
-      } else {
-        navigation.navigate('Home', { screen: 'PerfilTab', params: { comercioId, comercioNombre: nombre.trim() } });
-      }
+      Alert.alert(
+        'Enviado a revisión',
+        'El cambio de teléfono de contacto quedó enviado a revisión.',
+        [{ text: 'Entendido', onPress: () => navigation.navigate('Home', { screen: 'PerfilTab', params: { comercioId, comercioNombre: nombre } }) }]
+      );
     } catch (e) {
       Alert.alert('Error guardando', e.message);
     } finally {
@@ -137,41 +132,18 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={90}>
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
-        <Text style={styles.titulo}>Editar mi negocio</Text>
-        <Text style={styles.subtitulo}>Estos datos son solo tuyos, ajústalos cuando quieras.</Text>
+        <Text style={styles.titulo}>Mi negocio</Text>
+        <Text style={styles.subtitulo}>Desde aquí solo puedes actualizar tu teléfono de contacto. Para corregir el resto de tus datos, contacta a soporte.</Text>
 
-        <Text style={styles.label}>Nombre del negocio</Text>
-        <TextInput style={styles.input} placeholder="Ej. Tienda Juan" value={nombre} onChangeText={setNombre} />
-
-        <Text style={styles.label}>Ciudad</Text>
-        <TextInput style={styles.input} placeholder="Ej. Bogotá" value={ciudad} onChangeText={setCiudad} />
-
-        <Text style={styles.label}>Barrio</Text>
-        <TextInput style={styles.input} placeholder="Ej. La América" value={barrio} onChangeText={setBarrio} />
-
-        <Text style={styles.label}>Dirección</Text>
-        <TextInput style={styles.input} placeholder="Ej. Cra 45 #12-30" value={direccion} onChangeText={setDireccion} />
-
-        <Text style={styles.label}>Detalles de ubicación</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej. Apto 302, Torre B, Urb. Los Robles"
-          value={detalles}
-          onChangeText={setDetalles}
-        />
-
-        <Text style={styles.label}>Nombre de quien atiende</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej. Juan Pérez"
-          value={contactoNombre}
-          onChangeText={setContactoNombre}
-        />
-
-        <Text style={styles.label}>Tipo de negocio</Text>
-        <ChipSelector opciones={CATEGORIAS} valor={categoria} onCambiar={setCategoria} />
+        <CampoSoloLectura label="Nombre del negocio" valor={nombre} />
+        <CampoSoloLectura label="Ciudad" valor={ciudad} />
+        <CampoSoloLectura label="Barrio" valor={barrio} />
+        <CampoSoloLectura label="Dirección" valor={direccion} />
+        <CampoSoloLectura label="Detalles de ubicación" valor={detalles} />
+        <CampoSoloLectura label="Nombre de quien atiende" valor={contactoNombre} />
+        <CampoSoloLectura label="Tipo de negocio" valor={CATEGORIAS_LABEL[categoria] || categoria} />
 
         <Text style={styles.label}>Teléfono de contacto</Text>
         <TextInput
@@ -189,11 +161,19 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
         )}
 
         <TouchableOpacity
-          style={[styles.boton, (!nombre.trim() || guardando) && styles.botonDeshabilitado]}
-          disabled={!nombre.trim() || guardando}
+          style={[styles.boton, (!telefonoCambio || guardando) && styles.botonDeshabilitado]}
+          disabled={!telefonoCambio || guardando}
           onPress={guardar}
         >
-          <Text style={styles.botonTexto}>{guardando ? 'Guardando...' : 'Guardar cambios'}</Text>
+          <Text style={styles.botonTexto}>{guardando ? 'Guardando...' : 'Guardar teléfono'}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.botonEliminar, eliminando && styles.botonDeshabilitado]}
+          disabled={eliminando}
+          onPress={confirmarEliminar}
+        >
+          <Text style={styles.botonEliminarTexto}>{eliminando ? 'Eliminando...' : 'Eliminar perfil'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -203,16 +183,15 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, padding: 18, paddingTop: 20 },
   titulo: { fontSize: 20, fontWeight: '600', color: COLORS.text },
-  subtitulo: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4, marginBottom: 16 },
+  subtitulo: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4, marginBottom: 16, lineHeight: 18 },
   label: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 6, marginTop: 8 },
   input: { height: 48, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.white, marginBottom: 6 },
-  chipsFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-  chip: { paddingHorizontal: 14, height: 48, borderRadius: 24, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
-  chipActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipTexto: { fontSize: 13, color: COLORS.text },
-  chipTextoActivo: { color: COLORS.white, fontWeight: '600' },
+  campoSoloLectura: { marginBottom: 4 },
+  valorSoloLectura: { height: 48, borderWidth: 1, borderColor: COLORS.borderLight, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.textSecondary, backgroundColor: COLORS.bg, textAlignVertical: 'center', lineHeight: 48 },
   aviso: { fontSize: 12, color: COLORS.textSecondary, backgroundColor: COLORS.white, borderRadius: RADIUS.sm, padding: 10, marginTop: 8, lineHeight: 17 },
   boton: { marginTop: 20, height: 50, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
   botonTexto: { color: COLORS.white, fontWeight: '600', fontSize: 15 },
+  botonEliminar: { marginTop: 12, height: 50, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.error, alignItems: 'center', justifyContent: 'center' },
+  botonEliminarTexto: { color: COLORS.error, fontWeight: '600', fontSize: 15 },
 });

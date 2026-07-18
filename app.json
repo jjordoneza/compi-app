@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "compi",
-    "slug": "compi-v2",
+    "slug": "compi",
+    "owner": "jj-tecnologia-sas",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -38,17 +39,23 @@
         {
           "locationWhenInUsePermission": "Compi usa tu ubicación al crear tu negocio para ayudarte a encontrar proveedores que sí cubren tu zona. No se te muestra ni se comparte con nadie."
         }
+      ],
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "REEMPLAZA_CON_TU_API_KEY_DE_GOOGLE_MAPS_ANDROID"
+        }
       ]
     ],
     "runtimeVersion": {
       "policy": "fingerprint"
     },
     "updates": {
-      "url": "https://u.expo.dev/d9237162-353d-4f92-bda7-cea031085d03"
+      "url": "https://u.expo.dev/bf3ade9c-9f46-4567-9202-ec5d6b7c5797"
     },
     "extra": {
       "eas": {
-        "projectId": "d9237162-353d-4f92-bda7-cea031085d03"
+        "projectId": "bf3ade9c-9f46-4567-9202-ec5d6b7c5797"
       }
     }
   }

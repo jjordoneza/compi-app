@@ -52,7 +52,7 @@ export default function ProductosNuevos() {
               <button type="button" className="filaTop" onClick={() => setAbiertoId(abiertoId === s.id ? null : s.id)}>
                 <div>
                   <strong>{s.nombre}</strong>
-                  <p className="sub">{s.presentacion || 'Sin presentación'} · {s.categoria || 'Sin categoría'}</p>
+                  <p className="sub">{s.presentacion || 'Sin presentación'} · {s.categoria || 'Sin categoría'} · <span className="pillPendiente">Pendiente</span></p>
                   <p className="sub">
                     {s.comercios?.nombre} → {s.relaciones?.proveedores_maestro?.nombre || 'proveedor'}
                   </p>

@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
-import { ProveedoresMaestro, RelacionesExt, PedidosExt, SugerenciasCambio, SugerenciasCambioExt } from '../../supabase';
+import { ProveedoresMaestro, RelacionesExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresSugeridosExt } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
 
 const ETIQUETAS_SUG = { pendiente: 'Pendiente', aprobada: 'Aprobado', rechazada: 'Rechazado' };
+// proveedores_sugeridos usa 'aprobado'/'rechazado' (sin la 'a' de género),
+// distinto de sugerencias_cambio_proveedor ('aprobada'/'rechazada') — mismo
+// componente de pill, etiquetas separadas para no mezclar los dos estados.
+const ETIQUETAS_PROVEEDOR_SUGERIDO = { pendiente: 'Pendiente', aprobado: 'Aprobado', rechazado: 'Rechazado' };
 
 export default function ProveedoresTabScreen({ navigation, route }) {
   const { comercioId, comercioNombre } = route.params || {};
   const [relacionesLista, setRelacionesLista] = useState([]);
   const [sugerencias, setSugerencias] = useState([]);
+  // Proveedores que este comercio propuso (vía Importar contactos) y todavía
+  // no están vinculados — antes no se veía su estado en ningún lado de la app.
+  const [proveedoresPropuestos, setProveedoresPropuestos] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [eliminandoId, setEliminandoId] = useState(null);
 
@@ -34,6 +41,10 @@ export default function ProveedoresTabScreen({ navigation, route }) {
       const todos = await ProveedoresMaestro.listar();
       const sugs = await SugerenciasCambioExt.listarPorComercio(comercioId);
       setSugerencias(sugs);
+      const propuestos = await ProveedoresSugeridosExt.listarPorComercio(comercioId);
+      // Una vez aprobado, el proveedor ya aparece en la lista principal de abajo
+      // (vinculado) — mostrarlo también aquí sería redundante.
+      setProveedoresPropuestos(propuestos.filter((p) => p.estado !== 'aprobado'));
       setRelacionesLista(
         relaciones
           .filter((r) => r.activo)
@@ -45,38 +56,20 @@ export default function ProveedoresTabScreen({ navigation, route }) {
     }
   }
 
-  async function iniciarEliminarProveedor(relacion, proveedor) {
+  // Siempre soft-delete (decisión de producto, 18 jul 2026): "Quitar
+  // proveedor" nunca borra el catálogo/precios, con o sin historial de
+  // pedidos — solo desactiva la relación. Reactivar desde Agregar proveedor
+  // siempre recupera todo.
+  function iniciarEliminarProveedor(relacion, proveedor) {
     if (eliminandoId) return;
-    setEliminandoId(relacion.id);
-    let tieneHistorial = false;
-    try {
-      tieneHistorial = await PedidosExt.existeAlgunoPorRelacion(relacion.id);
-    } catch (e) {
-      setEliminandoId(null);
-      Alert.alert('Error', e.message);
-      return;
-    }
-    setEliminandoId(null);
-
-    if (tieneHistorial) {
-      Alert.alert(
-        'Quitar proveedor',
-        `${proveedor.nombre} ya tiene pedidos en tu historial, así que no se puede borrar del todo. Lo vamos a quitar de tu lista — tu historial queda intacto y puedes volver a agregarlo cuando quieras.`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Quitar', style: 'destructive', onPress: () => desactivarProveedor(relacion.id) },
-        ]
-      );
-    } else {
-      Alert.alert(
-        'Eliminar proveedor',
-        `¿Eliminar a ${proveedor.nombre}? Todavía no tiene pedidos, así que se elimina por completo junto con su catálogo.`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Eliminar', style: 'destructive', onPress: () => eliminarProveedorCompleto(relacion.id) },
-        ]
-      );
-    }
+    Alert.alert(
+      'Quitar proveedor',
+      `¿Quitar a ${proveedor.nombre} de tu lista? Tu catálogo, precios e historial con este proveedor quedan intactos — puedes volver a agregarlo cuando quieras y todo sigue ahí.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Quitar', style: 'destructive', onPress: () => desactivarProveedor(relacion.id) },
+      ]
+    );
   }
 
   async function desactivarProveedor(relacionId) {
@@ -86,25 +79,6 @@ export default function ProveedoresTabScreen({ navigation, route }) {
       await cargar();
     } catch (e) {
       Alert.alert('Error quitando', e.message);
-    } finally {
-      setEliminandoId(null);
-    }
-  }
-
-  async function eliminarProveedorCompleto(relacionId) {
-    setEliminandoId(relacionId);
-    try {
-      await RelacionesExt.eliminar(relacionId);
-      await cargar();
-    } catch (e) {
-      // Red de seguridad: si el DELETE choca con historial que no detectamos
-      // antes (ej. una FK de pedidos), cae a desactivar en vez de fallar en seco.
-      try {
-        await RelacionesExt.actualizar(relacionId, { activo: false });
-        await cargar();
-      } catch (e2) {
-        Alert.alert('Error eliminando', e.message);
-      }
     } finally {
       setEliminandoId(null);
     }
@@ -132,13 +106,23 @@ export default function ProveedoresTabScreen({ navigation, route }) {
     setTelefonoPropuestaValor('');
   }
 
+  // Celular colombiano: 10 dígitos exactos, empieza en 3 (rango de móviles).
+  function telefonoValido(texto) {
+    const soloDigitos = texto.replace(/\D/g, '');
+    return /^3\d{9}$/.test(soloDigitos);
+  }
+
   async function enviarPropuesta(proveedor) {
-    if (!telefonoPropuestaValor.trim()) return;
+    const soloDigitos = telefonoPropuestaValor.replace(/\D/g, '');
+    if (!telefonoValido(telefonoPropuestaValor)) {
+      Alert.alert('Número inválido', 'Debe ser un celular colombiano de 10 dígitos que empiece en 3 (ej. 3001234567).');
+      return;
+    }
     try {
       const creada = await SugerenciasCambio.crear({
         proveedor_id: proveedor.id,
         comercio_id: comercioId,
-        telefono_sugerido: telefonoPropuestaValor,
+        telefono_sugerido: soloDigitos,
         estado: 'pendiente',
       });
       setSugerencias((prev) => [creada[0], ...prev]);
@@ -159,6 +143,26 @@ export default function ProveedoresTabScreen({ navigation, route }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 18, paddingTop: 60, paddingBottom: 40 }}>
       <Text style={styles.titulo}>Mis proveedores</Text>
+
+      {proveedoresPropuestos.length > 0 && (
+        <View style={styles.propuestosBox}>
+          <Text style={styles.propuestosTitulo}>Proveedores que enviaste a revisión</Text>
+          {proveedoresPropuestos.map((p) => (
+            <View key={p.id} style={styles.propuestoFila}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.propuestoNombre}>{p.nombre}</Text>
+                {p.estado === 'rechazado' && p.motivo_rechazo && (
+                  <Text style={styles.propuestoMotivo}>Motivo: {p.motivo_rechazo}</Text>
+                )}
+              </View>
+              <View style={[styles.pillEstado, styles[`pill_${p.estado === 'aprobado' ? 'aprobada' : p.estado === 'rechazado' ? 'rechazada' : 'pendiente'}`]]}>
+                <Text style={styles.pillEstadoTexto}>{ETIQUETAS_PROVEEDOR_SUGERIDO[p.estado]}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
       <TextInput style={styles.buscador} placeholder="Buscar proveedor..." value={busqueda} onChangeText={setBusqueda} />
 
       {filtrados.length === 0 && <Text style={styles.vacio}>No tienes proveedores todavía</Text>}
@@ -209,12 +213,17 @@ export default function ProveedoresTabScreen({ navigation, route }) {
             )}
 
             {sugerencia && (
-              <View style={styles.sugerenciaFila}>
-                <Text style={styles.sugerenciaTexto}>Enviado a actualización: {sugerencia.telefono_sugerido}</Text>
-                <View style={[styles.pillEstado, styles[`pill_${sugerencia.estado}`]]}>
-                  <Text style={styles.pillEstadoTexto}>{ETIQUETAS_SUG[sugerencia.estado]}</Text>
+              <>
+                <View style={styles.sugerenciaFila}>
+                  <Text style={styles.sugerenciaTexto}>Enviado a actualización: {sugerencia.telefono_sugerido}</Text>
+                  <View style={[styles.pillEstado, styles[`pill_${sugerencia.estado}`]]}>
+                    <Text style={styles.pillEstadoTexto}>{ETIQUETAS_SUG[sugerencia.estado]}</Text>
+                  </View>
                 </View>
-              </View>
+                {sugerencia.estado === 'rechazada' && sugerencia.motivo_rechazo && (
+                  <Text style={styles.propuestoMotivo}>Motivo: {sugerencia.motivo_rechazo}</Text>
+                )}
+              </>
             )}
 
             {puedeProponerNueva && (
@@ -250,7 +259,7 @@ export default function ProveedoresTabScreen({ navigation, route }) {
               onPress={() => iniciarEliminarProveedor(relacion, proveedor)}
             >
               <Text style={styles.eliminarProveedorTexto}>
-                {eliminandoId === relacion.id ? 'Un momento...' : 'Eliminar proveedor'}
+                {eliminandoId === relacion.id ? 'Un momento...' : 'Quitar proveedor'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -296,6 +305,11 @@ const styles = StyleSheet.create({
   botonMiniCancelar: { paddingVertical: 9, paddingHorizontal: 8 },
   botonMiniCancelarTexto: { color: COLORS.textSecondary, fontSize: 12 },
   vacio: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 8, marginBottom: 8, fontSize: 12 },
+  propuestosBox: { backgroundColor: COLORS.white, borderRadius: RADIUS.md, padding: 12, marginBottom: 14, borderWidth: 0.5, borderColor: COLORS.borderLight },
+  propuestosTitulo: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8, textTransform: 'uppercase' },
+  propuestoFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+  propuestoNombre: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  propuestoMotivo: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   boton: { marginTop: 10, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonTexto: { color: COLORS.white, fontWeight: '600' },
 });

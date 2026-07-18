@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import * as Contacts from 'expo-contacts';
-import { ProveedoresSugeridos } from '../supabase';
+import { ProveedoresSugeridos, ProveedoresSugeridosExt } from '../supabase';
 import { usuarioActual } from '../auth';
 import { detectarProveedores } from '../ai';
 import { COLORS, RADIUS } from '../theme';
@@ -9,17 +9,28 @@ import { COLORS, RADIUS } from '../theme';
 // Un teléfono puede tener cientos de contactos; acotamos lo que mandamos al LLM.
 const MAX_CONTACTOS = 200;
 
+function primerTelefono(contacto) {
+  return contacto.phoneNumbers?.[0]?.number || null;
+}
+
 export default function ImportarContactosScreen({ route, navigation }) {
   const { comercioId, comercioNombre } = route.params;
   const [analizando, setAnalizando] = useState(true);
   const [error, setError] = useState(null);
   const [permisoDenegado, setPermisoDenegado] = useState(false);
+  // Una vez el SO deja de mostrar el diálogo de permisos (denegado "para
+  // siempre"), volver a llamar requestPermissionsAsync() no hace nada visible
+  // — hay que mandar al usuario a Ajustes en vez de reintentar en el aire.
+  const [permisoBloqueado, setPermisoBloqueado] = useState(false);
   const [resultados, setResultados] = useState([]); // [{nombre, esProveedor, categoria}]
   const [seleccionados, setSeleccionados] = useState([]);
   const [guardando, setGuardando] = useState(false);
   // Guarda qué índices ya se crearon con éxito, para que un reintento tras un
   // fallo a mitad de camino no vuelva a crear los mismos proveedores.
   const guardadosRef = useRef(new Set());
+  // index -> teléfono del contacto (para el cruce de duplicados por
+  // nombre+celular contra proveedores_maestro).
+  const telefonosRef = useRef({});
 
   useEffect(() => { analizar(); }, []);
 
@@ -27,21 +38,32 @@ export default function ImportarContactosScreen({ route, navigation }) {
     setAnalizando(true);
     setError(null);
     setPermisoDenegado(false);
+    setPermisoBloqueado(false);
     try {
-      const { status } = await Contacts.requestPermissionsAsync();
+      const { status, canAskAgain } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
         setPermisoDenegado(true);
+        setPermisoBloqueado(!canAskAgain);
         return;
       }
 
-      const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.Name] });
-      const nombres = [...new Set((data || []).map((c) => c.name).filter(Boolean))].slice(0, MAX_CONTACTOS);
+      const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers] });
+      const conNombre = (data || []).filter((c) => c.name);
+      // Dedup por nombre conservando el primer teléfono visto para ese nombre.
+      const vistos = new Map();
+      for (const c of conNombre) {
+        if (!vistos.has(c.name)) vistos.set(c.name, primerTelefono(c));
+      }
+      const nombres = [...vistos.keys()].slice(0, MAX_CONTACTOS);
 
       if (nombres.length === 0) {
         setResultados([]);
         setSeleccionados([]);
         return;
       }
+
+      telefonosRef.current = {};
+      nombres.forEach((nombre, i) => { telefonosRef.current[i] = vistos.get(nombre); });
 
       const detectados = await detectarProveedores(nombres);
       setResultados(detectados);
@@ -72,24 +94,50 @@ export default function ImportarContactosScreen({ route, navigation }) {
     try {
       // Fase 3: el tendero ya no crea proveedores_maestro directo — se propone
       // a la cola de curaduría (comparten identidad global entre todas las
-      // tiendas, así que necesitan aprobación). El vínculo con este comercio se
-      // crea recién cuando se aprueba, no antes.
+      // tiendas, así que necesitan aprobación). Excepción: si el celular del
+      // contacto coincide exacto con uno ya en el catálogo Y el nombre es
+      // parecido, se auto-vincula sin pasar por curaduría (migración 0032).
+      let vinculadosCount = 0;
       for (const i of seleccionados) {
         if (guardadosRef.current.has(i)) continue; // ya se guardó en un intento anterior
         const contacto = resultados[i];
-        await ProveedoresSugeridos.crear({
-          comercio_id: comercioId,
-          sugerido_por: usuarioActual()?.id || null,
-          nombre: contacto.nombre,
-          categoria: contacto.categoria === 'Otro' ? '' : contacto.categoria,
-          canal: 'whatsapp',
-          estado: 'pendiente',
-        });
+        const categoria = contacto.categoria === 'Otro' ? '' : contacto.categoria;
+        const telefono = telefonosRef.current[i] || null;
+
+        const match = telefono
+          ? await ProveedoresSugeridosExt.intentarAutoVincular({
+              p_comercio_id: comercioId,
+              p_nombre: contacto.nombre,
+              p_telefono: telefono,
+              p_categoria: categoria,
+              p_canal: 'whatsapp',
+            })
+          : [];
+
+        if (match && match.length > 0) {
+          vinculadosCount++;
+        } else {
+          await ProveedoresSugeridos.crear({
+            comercio_id: comercioId,
+            sugerido_por: usuarioActual()?.id || null,
+            nombre: contacto.nombre,
+            categoria,
+            canal: 'whatsapp',
+            telefono,
+            estado: 'pendiente',
+          });
+        }
         guardadosRef.current.add(i);
       }
+
+      const pendientesCount = seleccionados.length - vinculadosCount;
+      const partes = [];
+      if (vinculadosCount > 0) partes.push(`${vinculadosCount} ya estaban en Compi y quedaron vinculados de una vez.`);
+      if (pendientesCount > 0) partes.push(`${pendientesCount} son nuevos y quedaron en revisión — te avisamos cuando estén disponibles.`);
+
       Alert.alert(
-        'Enviado a revisión',
-        `Enviamos ${seleccionados.length} proveedor(es) a revisión. En cuanto se aprueben, podrás armar su catálogo desde la pestaña Proveedores.`,
+        'Proveedores agregados',
+        partes.join(' '),
         [{ text: 'Entendido', onPress: () => navigation.replace('Home', { comercioId, comercioNombre }) }]
       );
     } catch (e) {
@@ -119,11 +167,18 @@ export default function ImportarContactosScreen({ route, navigation }) {
       <View style={styles.centrado}>
         <Text style={styles.errorTitulo}>Necesitamos ver tus contactos</Text>
         <Text style={styles.errorTexto}>
-          Los usamos solo para ayudarte a marcar cuáles son proveedores. Puedes darnos permiso o seguir sin esto — lo agregas cuando quieras.
+          {permisoBloqueado
+            ? 'Ya rechazaste este permiso antes, así que tu celular no nos deja volver a preguntarte aquí. Actívalo desde Ajustes y vuelve.'
+            : 'Los usamos solo para ayudarte a marcar cuáles son proveedores. Puedes darnos permiso o seguir sin esto — lo agregas cuando quieras.'}
         </Text>
-        <TouchableOpacity style={styles.boton} onPress={analizar}>
-          <Text style={styles.botonTexto}>Dar permiso</Text>
+        <TouchableOpacity style={styles.boton} onPress={permisoBloqueado ? () => Linking.openSettings() : analizar}>
+          <Text style={styles.botonTexto}>{permisoBloqueado ? 'Abrir Ajustes' : 'Dar permiso'}</Text>
         </TouchableOpacity>
+        {permisoBloqueado && (
+          <TouchableOpacity style={[styles.boton, styles.botonSecundario]} onPress={analizar}>
+            <Text style={styles.botonSecundarioTexto}>Ya lo activé, reintentar</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.boton, styles.botonSecundario]}
           onPress={() => navigation.replace('Home', { comercioId, comercioNombre })}

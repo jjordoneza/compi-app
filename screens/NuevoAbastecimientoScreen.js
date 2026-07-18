@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ProveedoresMaestro, ProductosMaestro, RelacionesExt, ProductosRelacionExt,
-  PedidoItemsFull, AbastecimientosExt, PedidosExt, PrecioReferencia,
+  PedidoItemsFull, AbastecimientosExt, PedidosExt,
 } from '../supabase';
 import { COLORS, RADIUS, formatMoney, textoPrecioUnitario } from '../theme';
-import { UMBRAL_DESVIACION_PRECIO, UMBRAL_PRECIO_VIEJO_DIAS } from '../constants';
+import { UMBRAL_PRECIO_VIEJO_DIAS } from '../constants';
 
 const LIMITE_ABASTECIMIENTOS_USO = 15;
 
@@ -52,7 +52,6 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
   const [precioEditandoId, setPrecioEditandoId] = useState(null);
   const [precioEditandoValor, setPrecioEditandoValor] = useState('');
   const [guardandoPrecio, setGuardandoPrecio] = useState(false);
-  const [precioReferenciaActual, setPrecioReferenciaActual] = useState(null);
 
   useEffect(() => { cargar(); }, []);
 
@@ -150,36 +149,22 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
     });
   }
 
-  // Sin precio: prellena con la mediana de la red si existe (valor inicial
-  // editable, reduce la fricción de partir de cero). Con precio (se abre para
-  // corregirlo por viejo): no lo pisa, pero igual trae la referencia para
-  // poder mostrar el chequeo de sanidad al guardar.
-  async function empezarEditarPrecio(pr, relacionId) {
+  // Decisión de producto (18 jul 2026): el tendero nunca ve la mediana de
+  // red — genera fricción con su negociación propia con el proveedor. La RPC
+  // precio_referencia se deja intacta para posible uso interno futuro, esta
+  // pantalla ya no la llama.
+  function empezarEditarPrecio(pr, relacionId) {
     if (precioEditandoId === pr.id) {
       setPrecioEditandoId(null);
-      setPrecioReferenciaActual(null);
       return;
     }
     setPrecioEditandoId(pr.id);
     setPrecioEditandoValor(pr.precio_pactado != null ? String(pr.precio_pactado) : '');
-    setPrecioReferenciaActual(null);
-
-    const proveedor = proveedores.find((p) => p.relacionId === relacionId)?.proveedor;
-    if (!proveedor) return;
-    try {
-      const ref = await PrecioReferencia.obtener(comercioId, proveedor.id, pr.producto_id);
-      if (ref && ref.mediana != null) {
-        setPrecioReferenciaActual(ref.mediana);
-        if (pr.precio_pactado == null) {
-          setPrecioEditandoValor(String(Math.round(ref.mediana)));
-        }
-      }
-    } catch {
-      // Referencia es una ayuda — nunca bloquea poder teclear el precio a mano.
-    }
   }
 
-  async function guardarPrecioConfirmado(pr, relacionId, nuevoPrecio) {
+  async function guardarPrecioInline(pr, relacionId) {
+    if (guardandoPrecio) return;
+    const nuevoPrecio = limpiarNumero(precioEditandoValor);
     setGuardandoPrecio(true);
     try {
       await ProductosRelacionExt.actualizar(pr.id, { precio_pactado: nuevoPrecio });
@@ -190,35 +175,11 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
         ),
       }));
       setPrecioEditandoId(null);
-      setPrecioReferenciaActual(null);
     } catch (e) {
       Alert.alert('Error guardando precio', e.message);
     } finally {
       setGuardandoPrecio(false);
     }
-  }
-
-  // Chequeo de sanidad, nunca bloquea: si el precio tecleado se aleja mucho
-  // de la mediana de la red (en cualquier dirección), confirma antes de
-  // guardar — un tendero puede pagar legítimamente más por menor volumen.
-  async function guardarPrecioInline(pr, relacionId) {
-    if (guardandoPrecio) return;
-    const nuevoPrecio = limpiarNumero(precioEditandoValor);
-    if (nuevoPrecio != null && precioReferenciaActual != null) {
-      const desviacion = Math.abs(nuevoPrecio - precioReferenciaActual) / precioReferenciaActual;
-      if (desviacion > UMBRAL_DESVIACION_PRECIO) {
-        Alert.alert(
-          'Precio distinto a lo usual',
-          `Otros tenderos le pagan aproximadamente $${formatMoney(Math.round(precioReferenciaActual))} a este proveedor por esto. ¿Confirmas $${formatMoney(nuevoPrecio)}?`,
-          [
-            { text: 'Corregir', style: 'cancel' },
-            { text: 'Confirmar', onPress: () => guardarPrecioConfirmado(pr, relacionId, nuevoPrecio) },
-          ]
-        );
-        return;
-      }
-    }
-    await guardarPrecioConfirmado(pr, relacionId, nuevoPrecio);
   }
 
   function toggleExpandido(relacionId) {
@@ -285,7 +246,11 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: COLORS.bg }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={80}
+    >
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: alturaFooter + insets.bottom }}>
         <Text style={styles.titulo}>
           {repetirDeId ? 'Repetir abastecimiento' : precargarCantidades ? 'Pedido desde WhatsApp' : sugerirProductoRelacionId ? 'Reponer sugerido' : 'Nuevo abastecimiento'}
@@ -395,14 +360,11 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
                                 value={precioEditandoValor}
                                 onChangeText={setPrecioEditandoValor}
                               />
-                              {precioReferenciaActual != null && (
-                                <Text style={styles.textoReferencia}>Otros tenderos pagan ~${formatMoney(Math.round(precioReferenciaActual))}</Text>
-                              )}
                             </View>
                             <TouchableOpacity style={styles.botonMini} disabled={guardandoPrecio} onPress={() => guardarPrecioInline(pr, relacionId)}>
                               <Text style={styles.botonMiniTexto}>{guardandoPrecio ? 'Guardando...' : 'Guardar'}</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => { setPrecioEditandoId(null); setPrecioReferenciaActual(null); }}>
+                            <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setPrecioEditandoId(null)}>
                               <Text style={styles.botonMiniCancelarTexto}>Cancelar</Text>
                             </TouchableOpacity>
                           </View>
@@ -450,7 +412,7 @@ export default function NuevoAbastecimientoScreen({ route, navigation }) {
           <Text style={styles.botonEnviarTexto}>Continuar</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -481,7 +443,6 @@ const styles = StyleSheet.create({
   avisoTocable: { fontSize: 11, color: COLORS.warning, marginTop: 8, fontWeight: '600' },
   filaEdicion: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   inputPrecio: { flex: 1, height: 40, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.sm, paddingHorizontal: 12, fontSize: 13, color: COLORS.text, backgroundColor: COLORS.white },
-  textoReferencia: { fontSize: 10, color: COLORS.textSecondary, marginTop: 4 },
   botonMini: { backgroundColor: COLORS.primary, paddingVertical: 9, paddingHorizontal: 12, borderRadius: RADIUS.sm },
   botonMiniTexto: { color: COLORS.white, fontSize: 12, fontWeight: '600' },
   botonMiniCancelar: { paddingVertical: 9, paddingHorizontal: 8 },

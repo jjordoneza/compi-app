@@ -92,6 +92,12 @@ export async function listarProveedoresMaestro() {
   return data;
 }
 
+export async function listarStatsPorProveedor() {
+  const { data, error } = await supabase.rpc('admin_stats_por_proveedor');
+  if (error) throw error;
+  return data;
+}
+
 export async function crearProveedorMaestro(payload) {
   const { error } = await supabase.from('proveedores_maestro').insert(payload);
   if (error) throw error;

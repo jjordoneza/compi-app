@@ -40,21 +40,19 @@ function ChipSelector({ opciones, valor, onCambiar }) {
   );
 }
 
-// Sin pantalla propia, nunca bloquea el registro: si el permiso se niega o
-// la captura falla, el comercio simplemente queda sin coordenadas — el motor
+// Nunca bloquea el registro: si el permiso se niega o la captura falla,
+// devuelve null y el comercio simplemente queda sin coordenadas — el motor
 // de cobertura de proveedores ya está diseñado para ese caso (cae a
-// matching por barrio). No se le muestra nada de esto al tendero.
-async function capturarUbicacion(comercioId) {
+// matching por barrio). El guardado real ya no pasa aquí — lo hace
+// ConfirmarUbicacionScreen después de que el tendero confirme/ajuste el pin.
+async function capturarUbicacion() {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return;
+    if (status !== 'granted') return null;
     const posicion = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    await ComerciosExt.actualizar(comercioId, {
-      lat: posicion.coords.latitude,
-      lng: posicion.coords.longitude,
-    });
+    return { lat: posicion.coords.latitude, lng: posicion.coords.longitude };
   } catch (e) {
-    // Silencioso a propósito.
+    return null; // silencioso a propósito
   }
 }
 
@@ -70,13 +68,34 @@ export default function RegistroNegocioScreen({ route, navigation }) {
   const [canalAdquisicion, setCanalAdquisicion] = useState('');
   const [proveedoresTotales, setProveedoresTotales] = useState(5);
   const [guardando, setGuardando] = useState(false);
+  // Si el tendero ya creó el comercio y usa "atrás" desde Importar contactos
+  // para volver aquí, no se vuelve a crear otro — se re-navega con el mismo id.
+  const [comercioCreado, setComercioCreado] = useState(null);
 
   function cambiarProveedoresTotales(delta) {
     setProveedoresTotales((prev) => Math.max(0, prev + delta));
   }
 
+  // Todos los campos son obligatorios (decisión de producto, 18 jul 2026) —
+  // antes solo el nombre lo era.
+  const formCompleto =
+    nombre.trim() &&
+    ciudad.trim() &&
+    barrio.trim() &&
+    direccion.trim() &&
+    detalles.trim() &&
+    contactoNombre.trim() &&
+    categoria &&
+    canalAdquisicion;
+
   async function continuar() {
-    if (!nombre.trim()) return;
+    if (!formCompleto) return;
+
+    if (comercioCreado) {
+      navigation.navigate('ImportarContactos', { comercioId: comercioCreado.id, comercioNombre: comercioCreado.nombre });
+      return;
+    }
+
     setGuardando(true);
     try {
       // RPC crear_comercio: crea el comercio y la membresía del usuario atómicamente.
@@ -100,8 +119,19 @@ export default function RegistroNegocioScreen({ route, navigation }) {
           canal_adquisicion: canalAdquisicion || null,
         });
       }
-      capturarUbicacion(comercio.id); // sin await: no debe demorar la navegación
-      navigation.replace('ImportarContactos', { comercioId: comercio.id, comercioNombre: nombre.trim() });
+      setComercioCreado({ id: comercio.id, nombre: nombre.trim() });
+      const coords = await capturarUbicacion();
+      // navigate (no replace): así "atrás" regresa aquí en vez de saltar a Login.
+      if (coords) {
+        navigation.navigate('ConfirmarUbicacion', {
+          comercioId: comercio.id,
+          comercioNombre: nombre.trim(),
+          lat: coords.lat,
+          lng: coords.lng,
+        });
+      } else {
+        navigation.navigate('ImportarContactos', { comercioId: comercio.id, comercioNombre: nombre.trim() });
+      }
     } catch (e) {
       Alert.alert('Error guardando', e.message);
     } finally {
@@ -110,7 +140,7 @@ export default function RegistroNegocioScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 70, paddingHorizontal: 26, paddingBottom: 40 }}>
         <Text style={styles.titulo}>Cuéntanos de tu negocio</Text>
         <Text style={styles.subtitulo}>Así podemos ayudarte a organizar mejor tus pedidos.</Text>
@@ -124,10 +154,10 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         <Text style={styles.label}>Barrio</Text>
         <TextInput style={styles.input} placeholder="Ej. La América" value={barrio} onChangeText={setBarrio} />
 
-        <Text style={styles.label}>Dirección (opcional)</Text>
+        <Text style={styles.label}>Dirección</Text>
         <TextInput style={styles.input} placeholder="Ej. Cra 45 #12-30" value={direccion} onChangeText={setDireccion} />
 
-        <Text style={styles.label}>Detalles de ubicación (opcional)</Text>
+        <Text style={styles.label}>Detalles de ubicación</Text>
         <TextInput
           style={styles.input}
           placeholder="Ej. Apto 302, Torre B, Urb. Los Robles"
@@ -135,7 +165,7 @@ export default function RegistroNegocioScreen({ route, navigation }) {
           onChangeText={setDetalles}
         />
 
-        <Text style={styles.label}>Nombre de quien atiende (opcional)</Text>
+        <Text style={styles.label}>Nombre de quien atiende</Text>
         <TextInput
           style={styles.input}
           placeholder="Ej. Juan Pérez"
@@ -143,10 +173,10 @@ export default function RegistroNegocioScreen({ route, navigation }) {
           onChangeText={setContactoNombre}
         />
 
-        <Text style={styles.label}>Tipo de negocio (opcional)</Text>
+        <Text style={styles.label}>Tipo de negocio</Text>
         <ChipSelector opciones={CATEGORIAS} valor={categoria} onCambiar={setCategoria} />
 
-        <Text style={[styles.label, { marginTop: 4 }]}>¿Cómo llegaste a Compi? (opcional)</Text>
+        <Text style={[styles.label, { marginTop: 4 }]}>¿Cómo llegaste a Compi?</Text>
         <ChipSelector opciones={CANALES_ADQUISICION} valor={canalAdquisicion} onCambiar={setCanalAdquisicion} />
 
         <View style={styles.card}>
@@ -156,7 +186,16 @@ export default function RegistroNegocioScreen({ route, navigation }) {
             <TouchableOpacity style={styles.stepperBoton} onPress={() => cambiarProveedoresTotales(-1)}>
               <Text style={styles.stepperTexto}>−</Text>
             </TouchableOpacity>
-            <Text style={styles.stepperNumero}>{proveedoresTotales}</Text>
+            <TextInput
+              style={styles.stepperInput}
+              keyboardType="number-pad"
+              value={String(proveedoresTotales)}
+              onChangeText={(texto) => {
+                const numero = parseInt(texto.replace(/[^0-9]/g, ''), 10);
+                setProveedoresTotales(Number.isNaN(numero) ? 0 : numero);
+              }}
+              selectTextOnFocus
+            />
             <TouchableOpacity style={styles.stepperBoton} onPress={() => cambiarProveedoresTotales(1)}>
               <Text style={styles.stepperTexto}>+</Text>
             </TouchableOpacity>
@@ -164,8 +203,8 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         </View>
 
         <TouchableOpacity
-          style={[styles.boton, (!nombre.trim() || guardando) && styles.botonDeshabilitado]}
-          disabled={!nombre.trim() || guardando}
+          style={[styles.boton, (!formCompleto || guardando) && styles.botonDeshabilitado]}
+          disabled={!formCompleto || guardando}
           onPress={continuar}
         >
           <Text style={styles.botonTexto}>{guardando ? 'Guardando...' : 'Continuar'}</Text>
@@ -193,6 +232,7 @@ const styles = StyleSheet.create({
   stepperBoton: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
   stepperTexto: { fontSize: 20, color: COLORS.primary, fontWeight: '600' },
   stepperNumero: { fontSize: 22, fontWeight: '700', color: COLORS.text, minWidth: 30, textAlign: 'center' },
+  stepperInput: { fontSize: 22, fontWeight: '700', color: COLORS.text, minWidth: 60, textAlign: 'center', padding: 0 },
   boton: { marginTop: 24, backgroundColor: COLORS.primary, height: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
   botonTexto: { color: COLORS.white, fontSize: 16, fontWeight: '600' },

@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Switch, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt, PrecioReferencia } from '../supabase';
+import { ProductosMaestro, ProductosRelacionExt, RelacionesExt, PedidosExt, PedidoItemsExt, AbastecimientosExt, ProveedoresMaestroExt } from '../supabase';
 import { COLORS, RADIUS, formatMoney, textoPrecioUnitario } from '../theme';
-import { UMBRAL_DESVIACION_PRECIO, UMBRAL_PRECIO_VIEJO_DIAS } from '../constants';
+import { UMBRAL_PRECIO_VIEJO_DIAS } from '../constants';
 
 function limpiarNumero(texto) {
   const soloDigitos = texto.replace(/[^0-9]/g, '');
@@ -74,13 +74,16 @@ export default function RelacionDetalleScreen({ route, navigation }) {
 
   const [editandoId, setEditandoId] = useState(null);
   const [precioEditado, setPrecioEditado] = useState('');
-  const [precioReferenciaActual, setPrecioReferenciaActual] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
-  const [contactoNombre, setContactoNombre] = useState('');
-  const [telefonoContacto, setTelefonoContacto] = useState('');
-  const [telefonoContacto2, setTelefonoContacto2] = useState('');
+  // Decisión de producto (18 jul 2026): contacto_nombre, telefono_contacto_2
+  // y direccion_entrega dejan de ser editables — se muestran de solo lectura
+  // con el valor que ya tuvieran (nadie los vuelve a cambiar desde aquí). El
+  // teléfono deja de leer relacion.telefono_contacto (eso sigue siendo "Mi
+  // contacto con este proveedor" en ProveedoresTabScreen, sin tocar) y pasa a
+  // mostrar el número oficial de proveedores_maestro.
   const [direccionLocal, setDireccionLocal] = useState('');
+  const [proveedorMaestro, setProveedorMaestro] = useState(null);
   const [entregaEnTienda, setEntregaEnTienda] = useState(true);
   const [diasPedido, setDiasPedido] = useState('');
   const [minimoPedido, setMinimoPedido] = useState('');
@@ -102,14 +105,14 @@ export default function RelacionDetalleScreen({ route, navigation }) {
       setProductosMaestro(prodMaestro);
       setRelacionInfo(relacion);
       if (relacion) {
-        setContactoNombre(relacion.contacto_nombre || '');
-        setTelefonoContacto(relacion.telefono_contacto || '');
-        setTelefonoContacto2(relacion.telefono_contacto_2 || '');
         setDireccionLocal(relacion.direccion_entrega || '');
         setEntregaEnTienda(relacion.entrega_en_tienda ?? true);
         setDiasPedido(relacion.dias_pedido || '');
         setMinimoPedido(relacion.minimo_pedido != null ? String(relacion.minimo_pedido) : '');
         setAceptaCredito(relacion.acepta_credito ?? false);
+        if (relacion.proveedor_id) {
+          ProveedoresMaestroExt.obtenerPorId(relacion.proveedor_id).then(setProveedorMaestro);
+        }
       }
     } catch (e) {
       Alert.alert('Error cargando', e.message);
@@ -124,13 +127,12 @@ export default function RelacionDetalleScreen({ route, navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation]);
 
+  // Solo estos 4 quedan editables por el tendero — el resto de la pantalla
+  // (contacto, teléfono, dirección de entrega, ubicación del proveedor) es
+  // de solo lectura, fijada por el admin en Maestro de proveedores.
   async function guardarDatosContacto() {
     try {
       await RelacionesExt.actualizar(relacionId, {
-        contacto_nombre: contactoNombre,
-        telefono_contacto: telefonoContacto,
-        telefono_contacto_2: telefonoContacto2,
-        direccion_entrega: direccionLocal,
         entrega_en_tienda: entregaEnTienda,
         dias_pedido: diasPedido,
         minimo_pedido: limpiarNumero(minimoPedido),
@@ -219,29 +221,19 @@ export default function RelacionDetalleScreen({ route, navigation }) {
     }
   }
 
-  // Sin precio: prellena con la mediana de la red si existe (valor inicial
-  // editable). Con precio: no lo pisa, pero igual trae la referencia para el
-  // chequeo de sanidad al guardar.
-  async function empezarEdicionPrecio(item) {
+  // Decisión de producto (18 jul 2026): el tendero nunca ve la mediana de
+  // red — genera fricción con su negociación propia con el proveedor (y
+  // expone al proveedor si el tendero nota que paga distinto a otros). La
+  // RPC precio_referencia se deja intacta para posible uso interno futuro,
+  // simplemente esta pantalla ya no la llama.
+  function empezarEdicionPrecio(item) {
     setEditandoId(item.id);
     setPrecioEditado(item.precio_pactado != null ? String(item.precio_pactado) : '');
-    setPrecioReferenciaActual(null);
-
-    if (!relacionInfo) return;
-    try {
-      const ref = await PrecioReferencia.obtener(relacionInfo.comercio_id, relacionInfo.proveedor_id, item.producto_id);
-      if (ref && ref.mediana != null) {
-        setPrecioReferenciaActual(ref.mediana);
-        if (item.precio_pactado == null) {
-          setPrecioEditado(String(Math.round(ref.mediana)));
-        }
-      }
-    } catch {
-      // Referencia es una ayuda — nunca bloquea poder teclear el precio a mano.
-    }
   }
 
-  async function guardarPrecioConfirmado(item, nuevoPrecio) {
+  async function guardarPrecio(item) {
+    if (guardando) return;
+    const nuevoPrecio = limpiarNumero(precioEditado);
     setGuardando(true);
     try {
       await ProductosRelacionExt.actualizar(item.id, { precio_pactado: nuevoPrecio });
@@ -250,34 +242,11 @@ export default function RelacionDetalleScreen({ route, navigation }) {
         prev.map((pr) => (pr.id === item.id ? { ...pr, precio_pactado: nuevoPrecio, precio_actualizado_en: new Date().toISOString() } : pr))
       );
       setEditandoId(null);
-      setPrecioReferenciaActual(null);
     } catch (e) {
       Alert.alert('Error actualizando', e.message);
     } finally {
       setGuardando(false);
     }
-  }
-
-  // Chequeo de sanidad, nunca bloquea: precio muy distinto a la mediana de la
-  // red (en cualquier dirección) pide confirmación antes de guardar.
-  async function guardarPrecio(item) {
-    if (guardando) return;
-    const nuevoPrecio = limpiarNumero(precioEditado);
-    if (nuevoPrecio != null && precioReferenciaActual != null) {
-      const desviacion = Math.abs(nuevoPrecio - precioReferenciaActual) / precioReferenciaActual;
-      if (desviacion > UMBRAL_DESVIACION_PRECIO) {
-        Alert.alert(
-          'Precio distinto a lo usual',
-          `Otros tenderos le pagan aproximadamente $${formatMoney(Math.round(precioReferenciaActual))} a este proveedor por esto. ¿Confirmas $${formatMoney(nuevoPrecio)}?`,
-          [
-            { text: 'Corregir', style: 'cancel' },
-            { text: 'Confirmar', onPress: () => guardarPrecioConfirmado(item, nuevoPrecio) },
-          ]
-        );
-        return;
-      }
-    }
-    await guardarPrecioConfirmado(item, nuevoPrecio);
   }
 
   function confirmarEliminar(item, prod) {
@@ -329,7 +298,7 @@ export default function RelacionDetalleScreen({ route, navigation }) {
   const mostrarFooterAgregar = mostrarPicker && seleccionados.length > 0;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={90}>
       <View style={{ flex: 1 }}>
       <ScrollView
         style={styles.container}
@@ -345,14 +314,33 @@ export default function RelacionDetalleScreen({ route, navigation }) {
 
         {mostrarDatos && (
           <View style={styles.card}>
-            <Text style={styles.label}>Nombre del contacto (dueño/administrador)</Text>
-            <TextInput style={styles.input} placeholder="Ej. Karen Suárez" value={contactoNombre} onChangeText={setContactoNombre} />
-            <Text style={styles.label}>Teléfono contacto 1</Text>
-            <TextInput style={styles.input} placeholder="300 000 0000" keyboardType="phone-pad" value={telefonoContacto} onChangeText={setTelefonoContacto} />
-            <Text style={styles.label}>Teléfono contacto 2 (opcional)</Text>
-            <TextInput style={styles.input} placeholder="300 000 0000" keyboardType="phone-pad" value={telefonoContacto2} onChangeText={setTelefonoContacto2} />
-            <Text style={styles.label}>Dirección del local del proveedor</Text>
-            <TextInput style={styles.input} placeholder="Cra 45 #12-30" value={direccionLocal} onChangeText={setDireccionLocal} />
+            <Text style={styles.labelSoloLectura}>Estos datos los define Compi — solo puedes verlos aquí.</Text>
+
+            <Text style={styles.label}>Nombre del contacto</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.contacto_nombre || '—'}</Text>
+
+            <Text style={styles.label}>Teléfono</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.telefono || '—'}</Text>
+
+            {proveedorMaestro?.telefono_secundario && (
+              <>
+                <Text style={styles.label}>Teléfono 2</Text>
+                <Text style={styles.valorSoloLectura}>{proveedorMaestro.telefono_secundario}</Text>
+              </>
+            )}
+
+            <Text style={styles.label}>Dirección de entrega</Text>
+            <Text style={styles.valorSoloLectura}>{direccionLocal || '—'}</Text>
+
+            <Text style={styles.label}>Ciudad</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.ciudad || '—'}</Text>
+
+            <Text style={styles.label}>Barrio</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.barrio || '—'}</Text>
+
+            <Text style={styles.label}>Dirección del proveedor</Text>
+            <Text style={styles.valorSoloLectura}>{proveedorMaestro?.direccion || '—'}</Text>
+
             <View style={styles.filaSwitch}>
               <Text style={styles.label}>Entrega en tu tienda</Text>
               <Switch value={entregaEnTienda} onValueChange={setEntregaEnTienda} trackColor={{ true: COLORS.primary }} />
@@ -420,14 +408,11 @@ export default function RelacionDetalleScreen({ route, navigation }) {
                       value={precioEditado}
                       onChangeText={setPrecioEditado}
                     />
-                    {precioReferenciaActual != null && (
-                      <Text style={styles.textoReferencia}>Otros tenderos pagan ~${formatMoney(Math.round(precioReferenciaActual))}</Text>
-                    )}
                   </View>
                   <TouchableOpacity style={styles.botonMini} disabled={guardando} onPress={() => guardarPrecio(item)}>
                     <Text style={styles.botonMiniTexto}>{guardando ? 'Guardando...' : 'Guardar'}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => { setEditandoId(null); setPrecioReferenciaActual(null); }}>
+                  <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setEditandoId(null)}>
                     <Text style={styles.botonMiniCancelarTexto}>Cancelar</Text>
                   </TouchableOpacity>
                 </View>
@@ -490,8 +475,18 @@ export default function RelacionDetalleScreen({ route, navigation }) {
               value={busquedaProducto}
               onChangeText={setBusquedaProducto}
             />
-            <ChipsFiltro opciones={categoriasDisponibles} valor={categoriaFiltro} onCambiar={setCategoriaFiltro} />
-            <ChipsFiltro opciones={marcasDisponibles} valor={marcaFiltro} onCambiar={setMarcaFiltro} />
+            {categoriasDisponibles.length > 0 && (
+              <>
+                <Text style={styles.labelFiltro}>Categoría</Text>
+                <ChipsFiltro opciones={categoriasDisponibles} valor={categoriaFiltro} onCambiar={setCategoriaFiltro} />
+              </>
+            )}
+            {marcasDisponibles.length > 0 && (
+              <>
+                <Text style={styles.labelFiltro}>Marca</Text>
+                <ChipsFiltro opciones={marcasDisponibles} valor={marcaFiltro} onCambiar={setMarcaFiltro} />
+              </>
+            )}
             {disponibles.map((producto) => (
               <FilaPicker
                 key={producto.id}
@@ -542,6 +537,8 @@ const styles = StyleSheet.create({
   acordeonTexto: { color: COLORS.primary, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   card: { backgroundColor: COLORS.white, borderRadius: RADIUS.md, padding: 14, marginTop: 10, borderWidth: 0.5, borderColor: COLORS.borderLight },
   label: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 6, marginTop: 8 },
+  labelSoloLectura: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 10, fontStyle: 'italic' },
+  valorSoloLectura: { fontSize: 14, color: COLORS.text, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.borderLight, borderRadius: RADIUS.md, paddingHorizontal: 14, paddingVertical: 12 },
   input: { height: 46, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.bg, marginBottom: 10 },
   filaSwitch: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
   boton: { marginTop: 14, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
@@ -563,8 +560,8 @@ const styles = StyleSheet.create({
   avisoPrecio: { marginTop: 8, backgroundColor: COLORS.warningBg, borderRadius: RADIUS.sm, padding: 8 },
   avisoPrecioTexto: { fontSize: 11, color: COLORS.warning, lineHeight: 15 },
   avisoPrecioViejo: { fontSize: 11, color: COLORS.warning, fontWeight: '600', marginTop: 8 },
-  textoReferencia: { fontSize: 10, color: COLORS.textSecondary, marginTop: 4 },
   chipsFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  labelFiltro: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4, textTransform: 'uppercase' },
   chip: { paddingHorizontal: 14, height: 40, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
   chipActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipTexto: { fontSize: 12, color: COLORS.text },

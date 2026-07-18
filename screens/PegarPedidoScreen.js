@@ -40,8 +40,10 @@ export default function PegarPedidoScreen({ route, navigation }) {
   const faltaConfirmar = (detectados || []).some((item, i) => item.coincidencia && !confirmaciones[i]);
 
   function actualizarCantidad(index, delta) {
+    // Mínimo 1: un ítem con cantidad 0 no tiene sentido guardarlo — para
+    // quitarlo del todo está el botón "Quitar".
     setDetectados((prev) =>
-      prev.map((p, i) => (i === index ? { ...p, cantidad: Math.max(0, p.cantidad + delta) } : p))
+      prev.map((p, i) => (i === index ? { ...p, cantidad: Math.max(1, p.cantidad + delta) } : p))
     );
   }
 
@@ -134,12 +136,12 @@ export default function PegarPedidoScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         {detectados === null ? (
           <>
             <Text style={styles.titulo}>¿Qué le compras a {proveedorNombre}?</Text>
-            <Text style={styles.subtitulo}>Pega tu último pedido de WhatsApp. Esto arma el catálogo de lo que este proveedor te vende — no crea un pedido todavía.</Text>
+            <Text style={styles.subtitulo}>Pega tu último pedido de WhatsApp. Esto arma el catálogo de lo que este proveedor te vende — no crea un pedido todavía. Recuerda ponerle la marca y el tamaño a cada producto.</Text>
             <TextInput
               style={styles.textarea}
               multiline
@@ -227,6 +229,12 @@ export default function PegarPedidoScreen({ route, navigation }) {
             )}
             <TouchableOpacity style={styles.botonSecundario} onPress={() => setDetectados(null)}>
               <Text style={styles.botonSecundarioTexto}>Intentar con otro texto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.botonSecundario}
+              onPress={() => navigation.navigate('Home', { comercioId, comercioNombre })}
+            >
+              <Text style={styles.botonSecundarioTexto}>Cancelar</Text>
             </TouchableOpacity>
           </>
         )}

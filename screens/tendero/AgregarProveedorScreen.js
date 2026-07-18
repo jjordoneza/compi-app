@@ -7,6 +7,13 @@ import { COLORS, RADIUS } from '../../theme';
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const UMBRAL_COBERTURA = 0.3; // por debajo de esto no se destaca como "cubre tu zona" — sigue disponible igual
 
+// "Otros proveedores" (los que no tienen cobertura confirmada) se acota a
+// Medellín y municipios aledaños para no abrumar con proveedores de otras
+// ciudades. Un proveedor sin `ciudad` definida en el Maestro (dato admin
+// nuevo, todavía sin backfill) sigue apareciendo — no hay forma de saber si
+// aplica el filtro, así que no se oculta por falta de dato.
+const MUNICIPIOS_AREA_METROPOLITANA = ['medellín', 'medellin', 'sabaneta', 'bello', 'la estrella', 'caldas', 'barbosa', 'girardota'];
+
 export default function AgregarProveedorScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { comercioId } = route.params;
@@ -88,6 +95,7 @@ export default function AgregarProveedorScreen({ route, navigation }) {
     .sort((a, b) => (cobertura[b.id]?.confianza || 0) - (cobertura[a.id]?.confianza || 0));
   const disponiblesOtros = disponibles
     .filter((p) => (cobertura[p.id]?.confianza || 0) < UMBRAL_COBERTURA)
+    .filter((p) => !p.ciudad || MUNICIPIOS_AREA_METROPOLITANA.includes(p.ciudad.trim().toLowerCase()))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
   function renderProveedor(item) {
@@ -104,6 +112,9 @@ export default function AgregarProveedorScreen({ route, navigation }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.itemNombre}>{item.nombre}</Text>
           <Text style={styles.itemSub}>{item.categoria || 'Sin categoría'}</Text>
+          {(item.barrio || item.ciudad) && (
+            <Text style={styles.itemUbicacion}>{[item.barrio, item.ciudad].filter(Boolean).join(', ')}</Text>
+          )}
           {cubreZona && <Text style={styles.badgeCobertura}>📍 Cubre tu zona</Text>}
           {diaTexto && <Text style={styles.badgeDia}>Suele entregar los {diaTexto} en tu zona</Text>}
         </View>
@@ -176,6 +187,7 @@ const styles = StyleSheet.create({
   itemPickerActivo: { backgroundColor: COLORS.successBg, borderColor: COLORS.primary },
   itemNombre: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   itemSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  itemUbicacion: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   badgeCobertura: { fontSize: 11, color: COLORS.success, fontWeight: '600', marginTop: 4 },
   badgeDia: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   check: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },

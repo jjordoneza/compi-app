@@ -54,10 +54,19 @@ las reutilice, en vez de duplicar lógica de fuzzy-matching en cada lugar.
 1. El prompt pide, además de nombre/cantidad/presentación, `unidad_base` y
    `factor_conversion` normalizados (reglas: kg/g→kg, L/ml→litro, conteo→
    unidad). Si la presentación es ambigua, el LLM devuelve `unidad_base: null`
-   — nunca adivina. Mejor una aprobación de más que un match falso.
-2. Con `unidad_base` no nulo, el proxy llama `buscar_producto_similar` (anon
-   key — `productos_maestro` es de lectura pública bajo Fase 3) y adjunta la
-   mejor coincidencia si supera el umbral.
+   — nunca adivina.
+2. El proxy llama `buscar_producto_similar` (anon key — `productos_maestro` es
+   de lectura pública bajo Fase 3) siempre, tenga o no `unidad_base` el ítem
+   detectado, y adjunta la mejor coincidencia si supera el umbral de similitud
+   de nombre. **Corregido 18 jul 2026**: la versión original solo llamaba a
+   la RPC cuando `unidad_base` no era nulo — en la práctica el LLM lo deja en
+   `null` con frecuencia (es conservador a propósito), así que casi ningún
+   producto llegaba a mostrar la tarjeta de coincidencia y todo terminaba en
+   curaduría. `buscar_producto_similar` ya tolera `unidad_base` nulo en
+   cualquiera de los dos lados (ver su `where` en la migración 0025), así que
+   el filtro de similitud de nombre (0.35) sigue siendo la única red de
+   seguridad contra falsos positivos — no se perdió protección, solo se dejó
+   de bloquear la búsqueda antes de intentarla.
 
 **`detectar-proveedores`:** mismo patrón con `buscar_proveedor_similar`.
 

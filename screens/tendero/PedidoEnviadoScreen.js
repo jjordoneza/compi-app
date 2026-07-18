@@ -1,8 +1,20 @@
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, BackHandler } from 'react-native';
 import { COLORS, RADIUS } from '../../theme';
 
 export default function PedidoEnviadoScreen({ route, navigation }) {
   const { comercioId, comercioNombre, abastecimientoId } = route.params;
+
+  // Esta pantalla queda sola en el stack (navigation.reset desde Confirmar
+  // pedido) — sin esto, el botón físico de atrás en Android saca de la app
+  // en vez de llevar a Home.
+  useEffect(() => {
+    const suscripcion = BackHandler.addEventListener('hardwareBackPress', () => {
+      navigation.reset({ index: 0, routes: [{ name: 'Home', params: { comercioId, comercioNombre } }] });
+      return true;
+    });
+    return () => suscripcion.remove();
+  }, [navigation, comercioId, comercioNombre]);
 
   return (
     <View style={styles.container}>
