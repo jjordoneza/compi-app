@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listarProductosMaestro, crearProductoMaestro, actualizarProductoMaestro } from '../api';
+import Modal from '../components/Modal';
 
 const CATEGORIAS = [
   'Huevos', 'Lácteos', 'Bebidas', 'Snacks', 'Aseo',
@@ -148,18 +149,18 @@ function FilaProducto({ item, onGuardado }) {
   );
 }
 
+const ESTADO_INICIAL_NUEVO = {
+  nombre: '', marca: '', presentacion: '', categoria: null, unidadEmpaque: '', unidadesPorCaja: '', unidadBase: '',
+};
+
 export default function MaestroProductos() {
   const [productos, setProductos] = useState(null);
   const [error, setError] = useState('');
 
-  const [nombreNuevo, setNombreNuevo] = useState('');
-  const [marcaNuevo, setMarcaNuevo] = useState('');
-  const [presentacionNuevo, setPresentacionNuevo] = useState('');
-  const [categoriaNuevo, setCategoriaNuevo] = useState(null);
-  const [unidadEmpaqueNuevo, setUnidadEmpaqueNuevo] = useState('');
-  const [unidadesPorCajaNuevo, setUnidadesPorCajaNuevo] = useState('');
+  const [nuevo, setNuevo] = useState(ESTADO_INICIAL_NUEVO);
   const [creando, setCreando] = useState(false);
-  const [mostrarCrear, setMostrarCrear] = useState(false);
+  const [errorCrear, setErrorCrear] = useState('');
+  const [mostrarModal, setMostrarModal] = useState(false);
 
   async function cargar() {
     try {
@@ -173,29 +174,45 @@ export default function MaestroProductos() {
     cargar();
   }, []);
 
+  function campoNuevo(key, valor) {
+    setNuevo((prev) => ({ ...prev, [key]: valor }));
+  }
+
+  function cerrarModal() {
+    setMostrarModal(false);
+    setNuevo(ESTADO_INICIAL_NUEVO);
+    setErrorCrear('');
+  }
+
+  // Marca queda opcional a propósito: hay productos reales sin marca
+  // distinguible (ej. verduras y frutas sueltas) — forzarla bloquearía
+  // altas legítimas de esa categoría.
+  const formCompleto =
+    nuevo.nombre.trim() &&
+    nuevo.presentacion.trim() &&
+    nuevo.categoria &&
+    nuevo.unidadEmpaque.trim() &&
+    nuevo.unidadesPorCaja !== '' &&
+    nuevo.unidadBase;
+
   async function crear() {
-    if (!nombreNuevo.trim()) return;
+    if (!formCompleto || creando) return;
     setCreando(true);
-    setError('');
+    setErrorCrear('');
     try {
       await crearProductoMaestro({
-        nombre: nombreNuevo.trim(),
-        marca: marcaNuevo.trim() || null,
-        presentacion: presentacionNuevo.trim(),
-        categoria: categoriaNuevo || '',
-        unidad_empaque: unidadEmpaqueNuevo.trim() || null,
-        unidades_por_caja: unidadesPorCajaNuevo === '' ? null : Number(unidadesPorCajaNuevo),
+        nombre: nuevo.nombre.trim(),
+        marca: nuevo.marca.trim() || null,
+        presentacion: nuevo.presentacion.trim(),
+        categoria: nuevo.categoria,
+        unidad_empaque: nuevo.unidadEmpaque.trim(),
+        unidades_por_caja: Number(nuevo.unidadesPorCaja),
+        unidad_base: nuevo.unidadBase,
       });
-      setNombreNuevo('');
-      setMarcaNuevo('');
-      setPresentacionNuevo('');
-      setCategoriaNuevo(null);
-      setUnidadEmpaqueNuevo('');
-      setUnidadesPorCajaNuevo('');
-      setMostrarCrear(false);
+      cerrarModal();
       await cargar();
     } catch (e) {
-      setError(e.message);
+      setErrorCrear(e.message);
     } finally {
       setCreando(false);
     }
@@ -208,54 +225,48 @@ export default function MaestroProductos() {
       {error && <p className="error">{error}</p>}
 
       <div style={{ marginBottom: 14 }}>
-        <button type="button" className="gridBoton" style={{ height: 34 }} onClick={() => setMostrarCrear((v) => !v)}>
-          {mostrarCrear ? 'Cancelar' : '+ Crear nuevo'}
+        <button type="button" className="gridBoton" style={{ height: 34 }} onClick={() => setMostrarModal(true)}>
+          + Agregar producto
         </button>
       </div>
 
-      {mostrarCrear && (
-        <div className="chartCard">
-          <input
-            placeholder="Nombre"
-            value={nombreNuevo}
-            onChange={(e) => setNombreNuevo(e.target.value)}
-            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
-          />
-          <input
-            placeholder="Marca (ej. Coca-Cola)"
-            value={marcaNuevo}
-            onChange={(e) => setMarcaNuevo(e.target.value)}
-            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
-          />
-          <input
-            placeholder="Presentación (ej. Canasta, Six pack)"
-            value={presentacionNuevo}
-            onChange={(e) => setPresentacionNuevo(e.target.value)}
-            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
-          />
-          <div style={{ display: 'flex', gap: 10, marginBottom: 10, maxWidth: 320 }}>
-            <input
-              placeholder="Unidad (ej. botella)"
-              value={unidadEmpaqueNuevo}
-              onChange={(e) => setUnidadEmpaqueNuevo(e.target.value)}
-            />
-            <input
-              type="number"
-              placeholder="Unid./caja (ej. 12)"
-              value={unidadesPorCajaNuevo}
-              onChange={(e) => setUnidadesPorCajaNuevo(e.target.value)}
-            />
+      {mostrarModal && (
+        <Modal titulo="Agregar producto" onCerrar={cerrarModal}>
+          <div className="campoModal">
+            <label>Nombre</label>
+            <input value={nuevo.nombre} onChange={(e) => campoNuevo('nombre', e.target.value)} />
           </div>
-          <Chips opciones={CATEGORIAS} seleccion={categoriaNuevo} onToggle={(cat) => setCategoriaNuevo(categoriaNuevo === cat ? null : cat)} />
-          <button
-            type="button"
-            disabled={creando || !nombreNuevo.trim()}
-            onClick={crear}
-            style={{ marginTop: 12, maxWidth: 200 }}
-          >
+          <div className="campoModal">
+            <label>Marca (opcional)</label>
+            <input placeholder="Ej. Coca-Cola" value={nuevo.marca} onChange={(e) => campoNuevo('marca', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Presentación</label>
+            <input placeholder="Ej. Canasta, Six pack" value={nuevo.presentacion} onChange={(e) => campoNuevo('presentacion', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Categoría</label>
+            <Chips opciones={CATEGORIAS} seleccion={nuevo.categoria} onToggle={(cat) => campoNuevo('categoria', nuevo.categoria === cat ? null : cat)} />
+          </div>
+          <div className="campoModal">
+            <label>Unidad de empaque</label>
+            <input placeholder="Ej. botella" value={nuevo.unidadEmpaque} onChange={(e) => campoNuevo('unidadEmpaque', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Unidades por caja</label>
+            <input type="number" placeholder="Ej. 12" value={nuevo.unidadesPorCaja} onChange={(e) => campoNuevo('unidadesPorCaja', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Unidad base</label>
+            <select value={nuevo.unidadBase} onChange={(e) => campoNuevo('unidadBase', e.target.value)}>
+              {UNIDADES_BASE.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+            </select>
+          </div>
+          {errorCrear && <p className="error">{errorCrear}</p>}
+          <button type="button" className="gridBoton" disabled={!formCompleto || creando} onClick={crear}>
             {creando ? 'Guardando...' : 'Guardar'}
           </button>
-        </div>
+        </Modal>
       )}
 
       {productos.length === 0 ? (

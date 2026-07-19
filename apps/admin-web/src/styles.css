@@ -577,3 +577,72 @@ table.grid input {
   width: 100%;
   max-width: 420px;
 }
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modalPanel {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  width: 50vw;
+  min-width: 360px;
+  max-width: 640px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modalTitulo {
+  margin: 0;
+  font-size: 16px;
+}
+
+.modalCerrar {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.modalCerrar:hover {
+  color: var(--text-primary);
+}
+
+.modalBody {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.campoModal {
+  margin-bottom: 14px;
+}
+
+.campoModal label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.campoModal input,
+.campoModal select {
+  width: 100%;
+}
