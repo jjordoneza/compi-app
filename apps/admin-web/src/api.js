@@ -157,14 +157,25 @@ export async function listarPedidoItems(pedidoId) {
   return data;
 }
 
-export async function actualizarEstadoPedido(pedidoId, estado) {
-  const { error } = await supabase.from('pedidos').update({ estado }).eq('id', pedidoId);
+// Reemplaza los PATCH directos de antes (actualizarEstadoPedido/
+// actualizarEstadoAbastecimiento) — la RPC avanza el pedido a su siguiente
+// estado, registra el historial con fecha/hora, y recalcula el estado del
+// abastecimiento en el mismo lugar (migración 0038). Nunca acepta un estado
+// destino como parámetro, así que no hay forma de saltar ni retroceder.
+export async function avanzarEstadoPedido(pedidoId) {
+  const { data, error } = await supabase.rpc('avanzar_estado_pedido', { p_pedido_id: pedidoId }).single();
   if (error) throw error;
+  return data; // { estado_nuevo, abastecimiento_id, abastecimiento_estado }
 }
 
-export async function actualizarEstadoAbastecimiento(abastecimientoId, estado) {
-  const { error } = await supabase.from('abastecimientos').update({ estado }).eq('id', abastecimientoId);
+export async function listarHistorialPedido(pedidoId) {
+  const { data, error } = await supabase
+    .from('pedido_estado_historial')
+    .select('*')
+    .eq('pedido_id', pedidoId)
+    .order('cambiado_en', { ascending: true });
   if (error) throw error;
+  return data;
 }
 
 export async function listarProveedoresPendientes() {

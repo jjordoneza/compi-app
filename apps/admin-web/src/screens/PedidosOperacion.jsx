@@ -5,8 +5,8 @@ import {
   listarProductosRelacionTodos,
   listarPedidosPorAbastecimiento,
   listarPedidoItems,
-  actualizarEstadoPedido,
-  actualizarEstadoAbastecimiento,
+  avanzarEstadoPedido,
+  listarHistorialPedido,
   listarProveedoresMaestro,
   listarProductosMaestro,
 } from '../api';
@@ -22,13 +22,6 @@ const SECCIONES = [
 function siguienteEstado(estadoActual) {
   const i = ESTADOS.indexOf(estadoActual);
   return i >= 0 && i < ESTADOS.length - 1 ? ESTADOS[i + 1] : null;
-}
-
-function calcularEstadoGeneral(grupos) {
-  if (grupos.length === 0) return 'procesando';
-  if (grupos.every((g) => g.estado === 'entregado')) return 'entregado';
-  if (grupos.every((g) => g.estado === 'confirmado' || g.estado === 'entregado')) return 'confirmado';
-  return 'procesando';
 }
 
 function TarjetaAbastecimiento({ ab, catalogo, onCambioEstado }) {
@@ -48,7 +41,10 @@ function TarjetaAbastecimiento({ ab, catalogo, onCambioEstado }) {
       const pedidos = await listarPedidosPorAbastecimiento(ab.id);
       const grupos = await Promise.all(
         pedidos.map(async (pedido) => {
-          const items = await listarPedidoItems(pedido.id);
+          const [items, historial] = await Promise.all([
+            listarPedidoItems(pedido.id),
+            listarHistorialPedido(pedido.id),
+          ]);
           const relacion = catalogo.relaciones.find((r) => r.id === pedido.relacion_id);
           const proveedor = relacion ? catalogo.proveedores.find((p) => p.id === relacion.proveedor_id) : null;
 
@@ -65,6 +61,8 @@ function TarjetaAbastecimiento({ ab, catalogo, onCambioEstado }) {
           return {
             pedidoId: pedido.id,
             estado: pedido.estado,
+            creadoEn: pedido.created_at,
+            historial,
             proveedorNombre: proveedor?.nombre || 'Proveedor',
             items: nombresItems,
             subtotal: faltaPrecio ? null : subtotal,
@@ -77,17 +75,24 @@ function TarjetaAbastecimiento({ ab, catalogo, onCambioEstado }) {
     }
   }
 
+  // avanzar_estado_pedido (migración 0038) hace todo del lado del servidor:
+  // mueve el pedido a su siguiente estado, registra el historial con fecha/hora,
+  // y recalcula abastecimientos.estado a partir de TODOS sus pedidos — ya no
+  // hay que calcularlo aquí ni hacer un segundo PATCH.
   async function avanzar(grupo) {
     const siguiente = siguienteEstado(grupo.estado);
     if (!siguiente) return;
     setActualizandoId(grupo.pedidoId);
     try {
-      await actualizarEstadoPedido(grupo.pedidoId, siguiente);
-      const actualizados = detalle.map((g) => (g.pedidoId === grupo.pedidoId ? { ...g, estado: siguiente } : g));
+      const resultado = await avanzarEstadoPedido(grupo.pedidoId);
+      const nuevaEntradaHistorial = { pedido_id: grupo.pedidoId, estado_anterior: grupo.estado, estado_nuevo: resultado.estado_nuevo, cambiado_en: new Date().toISOString() };
+      const actualizados = detalle.map((g) =>
+        g.pedidoId === grupo.pedidoId
+          ? { ...g, estado: resultado.estado_nuevo, historial: [...g.historial, nuevaEntradaHistorial] }
+          : g
+      );
       setDetalle(actualizados);
-      const estadoGeneral = calcularEstadoGeneral(actualizados);
-      await actualizarEstadoAbastecimiento(ab.id, estadoGeneral);
-      onCambioEstado(ab.id, estadoGeneral);
+      onCambioEstado(ab.id, resultado.abastecimiento_estado);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -125,6 +130,15 @@ function TarjetaAbastecimiento({ ab, catalogo, onCambioEstado }) {
                       • {it.nombre} x{it.cantidad}
                     </p>
                   ))}
+                  <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                    Hecho: {new Date(grupo.creadoEn).toLocaleString('es-CO')}
+                    {grupo.historial.map((h) => (
+                      <span key={h.cambiado_en}>
+                        {' · '}
+                        {ETIQUETAS[h.estado_nuevo] || h.estado_nuevo}: {new Date(h.cambiado_en).toLocaleString('es-CO')}
+                      </span>
+                    ))}
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
                     <span className="sub">{ETIQUETAS[grupo.estado]}</span>
                     {siguiente && (

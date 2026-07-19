@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { listarProveedoresMaestro, crearProveedorMaestro, actualizarProveedorMaestro, listarStatsPorProveedor } from '../api';
 import { BARRIOS_MEDELLIN } from '../constants';
+import Modal from '../components/Modal';
+
+// Celular colombiano: 10 dígitos, empieza en 3 — mismo criterio que
+// telefonoValido() del lado RN (CrearProveedorScreen).
+function telefonoValido(texto) {
+  return /^3\d{9}$/.test((texto || '').replace(/\D/g, ''));
+}
 
 const CATEGORIAS = [
   'Huevos', 'Lácteos', 'Bebidas', 'Snacks', 'Aseo',
@@ -172,17 +179,19 @@ function FilaProveedor({ item, stats, onGuardado }) {
   );
 }
 
+const ESTADO_INICIAL_NUEVO = {
+  nombre: '', categorias: [], nivelServicio: 'personal', telefono: '', contactoNombre: '',
+  ciudad: '', barrio: '', direccion: '', telefonoSecundario: '', zonasCobertura: '',
+};
+
 export default function MaestroProveedores() {
   const [proveedores, setProveedores] = useState(null);
   const [stats, setStats] = useState({}); // proveedor_id -> { n_productos, n_pedidos }
   const [error, setError] = useState('');
-  const [nombreNuevo, setNombreNuevo] = useState('');
-  const [categoriasNuevo, setCategoriasNuevo] = useState([]);
-  const [ciudadNuevo, setCiudadNuevo] = useState('');
-  const [barrioNuevo, setBarrioNuevo] = useState('');
-  const [direccionNuevo, setDireccionNuevo] = useState('');
+  const [nuevo, setNuevo] = useState(ESTADO_INICIAL_NUEVO);
   const [creando, setCreando] = useState(false);
-  const [mostrarCrear, setMostrarCrear] = useState(false);
+  const [errorCrear, setErrorCrear] = useState('');
+  const [mostrarModal, setMostrarModal] = useState(false);
 
   async function cargar() {
     try {
@@ -198,31 +207,58 @@ export default function MaestroProveedores() {
     cargar();
   }, []);
 
-  function toggleNuevaCategoria(cat) {
-    setCategoriasNuevo((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
+  function campoNuevo(key, valor) {
+    setNuevo((prev) => ({ ...prev, [key]: valor }));
   }
 
+  function toggleNuevaCategoria(cat) {
+    setNuevo((prev) => ({
+      ...prev,
+      categorias: prev.categorias.includes(cat) ? prev.categorias.filter((c) => c !== cat) : [...prev.categorias, cat],
+    }));
+  }
+
+  function cerrarModal() {
+    setMostrarModal(false);
+    setNuevo(ESTADO_INICIAL_NUEVO);
+    setErrorCrear('');
+  }
+
+  // Campos obligatorios: los que todo proveedor real tiene. Celular 2 y
+  // zonas de cobertura quedan opcionales a propósito — son datos que
+  // genuinamente no todos los proveedores tienen (segundo celular, zona
+  // conocida a mano por un admin), forzarlos bloquearía altas legítimas.
+  const formCompleto =
+    nuevo.nombre.trim() &&
+    nuevo.categorias.length > 0 &&
+    nuevo.nivelServicio &&
+    telefonoValido(nuevo.telefono) &&
+    nuevo.contactoNombre.trim() &&
+    nuevo.ciudad.trim() &&
+    nuevo.barrio.trim() &&
+    nuevo.direccion.trim();
+
   async function crear() {
-    if (!nombreNuevo.trim()) return;
+    if (!formCompleto || creando) return;
     setCreando(true);
-    setError('');
+    setErrorCrear('');
     try {
       await crearProveedorMaestro({
-        nombre: nombreNuevo.trim(),
-        categoria: categoriasNuevo.join(', '),
-        ciudad: ciudadNuevo.trim() || null,
-        barrio: barrioNuevo.trim() || null,
-        direccion: direccionNuevo.trim() || null,
+        nombre: nuevo.nombre.trim(),
+        categoria: nuevo.categorias.join(', '),
+        nivel_servicio: nuevo.nivelServicio,
+        telefono: nuevo.telefono.replace(/\D/g, ''),
+        contacto_nombre: nuevo.contactoNombre.trim(),
+        ciudad: nuevo.ciudad.trim(),
+        barrio: nuevo.barrio.trim(),
+        direccion: nuevo.direccion.trim(),
+        telefono_secundario: nuevo.telefonoSecundario.trim() || null,
+        zonas_cobertura: nuevo.zonasCobertura.trim() || null,
       });
-      setNombreNuevo('');
-      setCategoriasNuevo([]);
-      setCiudadNuevo('');
-      setBarrioNuevo('');
-      setDireccionNuevo('');
-      setMostrarCrear(false);
+      cerrarModal();
       await cargar();
     } catch (e) {
-      setError(e.message);
+      setErrorCrear(e.message);
     } finally {
       setCreando(false);
     }
@@ -241,48 +277,62 @@ export default function MaestroProveedores() {
       {error && <p className="error">{error}</p>}
 
       <div style={{ marginBottom: 14 }}>
-        <button type="button" className="gridBoton" style={{ height: 34 }} onClick={() => setMostrarCrear((v) => !v)}>
-          {mostrarCrear ? 'Cancelar' : '+ Crear nuevo'}
+        <button type="button" className="gridBoton" style={{ height: 34 }} onClick={() => setMostrarModal(true)}>
+          + Agregar proveedor
         </button>
       </div>
 
-      {mostrarCrear && (
-        <div className="chartCard">
-          <input
-            placeholder="Nombre"
-            value={nombreNuevo}
-            onChange={(e) => setNombreNuevo(e.target.value)}
-            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
-          />
-          <Chips opciones={CATEGORIAS} seleccion={categoriasNuevo} onToggle={toggleNuevaCategoria} />
-          <input
-            placeholder="Ciudad"
-            value={ciudadNuevo}
-            onChange={(e) => setCiudadNuevo(e.target.value)}
-            style={{ marginTop: 10, marginBottom: 10, width: '100%', maxWidth: 320 }}
-          />
-          <input
-            list="barrios-list"
-            placeholder="Barrio"
-            value={barrioNuevo}
-            onChange={(e) => setBarrioNuevo(e.target.value)}
-            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
-          />
-          <input
-            placeholder="Dirección"
-            value={direccionNuevo}
-            onChange={(e) => setDireccionNuevo(e.target.value)}
-            style={{ marginBottom: 10, width: '100%', maxWidth: 320 }}
-          />
-          <button
-            type="button"
-            disabled={creando || !nombreNuevo.trim()}
-            onClick={crear}
-            style={{ marginTop: 12, maxWidth: 200 }}
-          >
+      {mostrarModal && (
+        <Modal titulo="Agregar proveedor" onCerrar={cerrarModal}>
+          <div className="campoModal">
+            <label>Nombre</label>
+            <input value={nuevo.nombre} onChange={(e) => campoNuevo('nombre', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Categorías</label>
+            <Chips opciones={CATEGORIAS} seleccion={nuevo.categorias} onToggle={toggleNuevaCategoria} />
+          </div>
+          <div className="campoModal">
+            <label>Nivel de servicio</label>
+            <select value={nuevo.nivelServicio} onChange={(e) => campoNuevo('nivelServicio', e.target.value)}>
+              {NIVELES_SERVICIO.map((n) => (
+                <option key={n.value} value={n.value}>{n.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="campoModal">
+            <label>Celular</label>
+            <input placeholder="Ej. 3001234567" value={nuevo.telefono} onChange={(e) => campoNuevo('telefono', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Nombre de contacto</label>
+            <input value={nuevo.contactoNombre} onChange={(e) => campoNuevo('contactoNombre', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Ciudad</label>
+            <input value={nuevo.ciudad} onChange={(e) => campoNuevo('ciudad', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Barrio</label>
+            <input list="barrios-list" value={nuevo.barrio} onChange={(e) => campoNuevo('barrio', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Dirección</label>
+            <input value={nuevo.direccion} onChange={(e) => campoNuevo('direccion', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Celular 2 (opcional)</label>
+            <input value={nuevo.telefonoSecundario} onChange={(e) => campoNuevo('telefonoSecundario', e.target.value)} />
+          </div>
+          <div className="campoModal">
+            <label>Zonas de cobertura, manual (opcional)</label>
+            <input placeholder="Ej. Belén, Laureles" value={nuevo.zonasCobertura} onChange={(e) => campoNuevo('zonasCobertura', e.target.value)} />
+          </div>
+          {errorCrear && <p className="error">{errorCrear}</p>}
+          <button type="button" className="gridBoton" disabled={!formCompleto || creando} onClick={crear}>
             {creando ? 'Guardando...' : 'Guardar'}
           </button>
-        </div>
+        </Modal>
       )}
 
       {proveedores.length === 0 ? (
