@@ -139,6 +139,21 @@ export const CoberturaProveedor = {
     }).then(manejar),
 };
 
+// "No cubre mi zona" al quitar un proveedor — ver supabase/migrations/0010.
+// Se guarda para análisis futuro, no se consume todavía en ninguna pantalla.
+export const CoberturaSenalesNegativas = tabla('cobertura_senales_negativas');
+
+// Aviso "¿es tu negocio?" al registrar con un teléfono ya usado por otro
+// dueño — ver supabase/migrations/0037. Nunca bloquea el registro.
+export const ComercioPorTelefono = {
+  buscar: (telefono) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/comercio_por_telefono`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ p_telefono: telefono }),
+    }).then(manejar),
+};
+
 export const RelacionesExt = {
   ...Relaciones,
   // Sin filtrar por "activo" a propósito: el historial (Inicio, Pedidos) necesita

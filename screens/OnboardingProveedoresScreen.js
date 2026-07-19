@@ -1,8 +1,12 @@
 import { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { RelacionesExt, ProveedoresMaestro, ProductosRelacionExt } from '../supabase';
+import { RelacionesExt, ProveedoresMaestro, ProductosRelacionExt, CoberturaProveedor } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
+
+// Mismo umbral que AgregarProveedorScreen/ProveedoresTabScreen — el badge
+// "cubre tu zona" debe significar lo mismo en toda la app.
+const UMBRAL_COBERTURA = 0.3;
 
 // Pantalla 27 — Loop de onboarding: arma el catálogo de cada proveedor, uno a uno.
 // "Terminar por ahora" siempre disponible; los proveedores sin catálogo quedan
@@ -13,6 +17,11 @@ export default function OnboardingProveedoresScreen({ route, navigation }) {
   const [total, setTotal] = useState(0);
   const [saltados, setSaltados] = useState([]); // ocultos solo en esta sesión
   const [error, setError] = useState(null);
+  // Proveedores NO vinculados todavía con cobertura confirmada en la zona del
+  // comercio (gap P2 #9: la RPC ya existía pero no estaba conectada a ninguna
+  // pantalla del onboarding) — solo se ofrece cuando ya se terminó el loop de
+  // catalogar los vinculados, para no competir con ese héroe de la pantalla.
+  const [sugeridos, setSugeridos] = useState([]);
 
   const cargar = useCallback(async () => {
     setError(null);
@@ -25,6 +34,19 @@ export default function OnboardingProveedoresScreen({ route, navigation }) {
         .filter((x) => x.items === 0);
       setTotal(rels.length);
       setPendientes(sinCatalogo);
+
+      const idsVinculados = rels.map((r) => r.proveedor_id);
+      CoberturaProveedor.confianza(comercioId)
+        .then((filas) => {
+          const sug = (filas || [])
+            .filter((f) => !idsVinculados.includes(f.proveedor_id) && (Number(f.confianza) || 0) >= UMBRAL_COBERTURA)
+            .sort((a, b) => (Number(b.confianza) || 0) - (Number(a.confianza) || 0))
+            .slice(0, 3)
+            .map((f) => provs.find((p) => p.id === f.proveedor_id))
+            .filter(Boolean);
+          setSugeridos(sug);
+        })
+        .catch(() => {}); // nunca bloquea el onboarding por esto
     } catch (e) {
       setError(e.message);
     }
@@ -76,6 +98,22 @@ export default function OnboardingProveedoresScreen({ route, navigation }) {
         <Text style={styles.subtitulo}>
           Ya organizaste tus proveedores. Puedes armar más catálogos cuando quieras desde la pestaña Proveedores.
         </Text>
+
+        {sugeridos.length > 0 && (
+          <View style={styles.sugeridosCard}>
+            <Text style={styles.sugeridosTitulo}>📍 Proveedores que cubren tu zona</Text>
+            <Text style={styles.sugeridosTexto}>
+              Ya reparten cerca de tu negocio y todavía no los tienes: {sugeridos.map((p) => p.nombre).join(', ')}.
+            </Text>
+            <TouchableOpacity
+              style={styles.sugeridosBoton}
+              onPress={() => navigation.navigate('AgregarProveedor', { comercioId })}
+            >
+              <Text style={styles.sugeridosBotonTexto}>Ver y agregar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <TouchableOpacity style={styles.boton} onPress={irAHome}>
           <Text style={styles.botonTexto}>Ir al inicio</Text>
         </TouchableOpacity>
@@ -148,6 +186,11 @@ const styles = StyleSheet.create({
   saltarTexto: { color: COLORS.textSecondary, fontSize: 13 },
   terminar: { marginTop: 4, height: 44, alignItems: 'center', justifyContent: 'center' },
   terminarTexto: { color: COLORS.textSecondary, fontSize: 13 },
+  sugeridosCard: { marginTop: 20, marginBottom: 4, width: '100%', backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.borderLight, padding: 16 },
+  sugeridosTitulo: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  sugeridosTexto: { fontSize: 12, color: COLORS.textSecondary, marginTop: 6, lineHeight: 17 },
+  sugeridosBoton: { marginTop: 12, height: 40, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  sugeridosBotonTexto: { color: COLORS.primary, fontWeight: '600', fontSize: 13 },
   check: { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.successBg, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   checkTexto: { fontSize: 28, color: COLORS.success, fontWeight: '700' },
 });

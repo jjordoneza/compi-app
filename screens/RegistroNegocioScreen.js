@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import { Cuenta, ComerciosExt } from '../supabase';
+import { Cuenta, ComerciosExt, ComercioPorTelefono } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
+import { BARRIOS_MEDELLIN } from '../constants';
 
 const CATEGORIAS = [
   { value: 'tienda_barrio', label: 'Tienda de barrio' },
@@ -37,6 +38,25 @@ function ChipSelector({ opciones, valor, onCambiar }) {
           </TouchableOpacity>
         );
       })}
+    </View>
+  );
+}
+
+// Sugerencias de barrio mientras se escribe — solo para reducir variantes de
+// escritura del mismo barrio (ayuda al matching del motor de cobertura). El
+// campo sigue siendo texto libre: no se valida ni se bloquea contra la lista.
+function SugerenciasBarrio({ texto, onSeleccionar }) {
+  const q = texto.trim().toLowerCase();
+  if (q.length < 2) return null;
+  const sugerencias = BARRIOS_MEDELLIN.filter((b) => b.toLowerCase().includes(q) && b.toLowerCase() !== q).slice(0, 5);
+  if (sugerencias.length === 0) return null;
+  return (
+    <View style={styles.sugerenciasFila}>
+      {sugerencias.map((s) => (
+        <TouchableOpacity key={s} style={styles.sugerenciaChip} onPress={() => onSeleccionar(s)}>
+          <Text style={styles.sugerenciaChipTexto}>{s}</Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
@@ -100,6 +120,37 @@ export default function RegistroNegocioScreen({ route, navigation }) {
     }
 
     setGuardando(true);
+
+    // Aviso de solo-lectura, nunca bloquea (gap P3 #7): si el teléfono ya es
+    // de OTRO dueño, es casi seguro un duplicado real o alguien reclamando un
+    // negocio ajeno por error — pero multi-comercio del mismo dueño (mismo
+    // teléfono OTP en un 2º/3er negocio) es un caso legítimo, así que la RPC
+    // ya excluye los comercios propios y esto nunca se dispara para ese caso.
+    if (telefono) {
+      try {
+        const coincidencias = await ComercioPorTelefono.buscar(telefono);
+        if (coincidencias && coincidencias.length > 0) {
+          setGuardando(false);
+          Alert.alert(
+            '¿Es tu negocio?',
+            `Ya existe un negocio registrado con este teléfono: "${coincidencias[0].nombre}". Si es el mismo negocio, pide a quien lo registró que te agregue como miembro en vez de crear uno nuevo. Si es un negocio distinto, puedes continuar.`,
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              { text: 'Continuar de todas formas', onPress: crearComercioReal },
+            ]
+          );
+          return;
+        }
+      } catch (e) {
+        // No bloquea el registro por esto — mismo criterio que capturarUbicacion().
+      }
+    }
+
+    await crearComercioReal();
+  }
+
+  async function crearComercioReal() {
+    setGuardando(true);
     try {
       // RPC crear_comercio: crea el comercio y la membresía del usuario atómicamente.
       const creado = await Cuenta.crearComercio(
@@ -157,6 +208,7 @@ export default function RegistroNegocioScreen({ route, navigation }) {
 
         <Text style={styles.label}>Barrio</Text>
         <TextInput style={styles.input} placeholder="Ej. La América" value={barrio} onChangeText={setBarrio} />
+        <SugerenciasBarrio texto={barrio} onSeleccionar={setBarrio} />
 
         <Text style={styles.label}>¿Cuál es la dirección de este negocio?</Text>
         <TextInput style={styles.input} placeholder="Ej. Cra 45 #12-30" value={direccion} onChangeText={setDireccion} />
@@ -235,6 +287,9 @@ const styles = StyleSheet.create({
   chipActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipTexto: { fontSize: 13, color: COLORS.text },
   chipTextoActivo: { color: COLORS.white, fontWeight: '600' },
+  sugerenciasFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -8, marginBottom: 16 },
+  sugerenciaChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.borderLight },
+  sugerenciaChipTexto: { fontSize: 12, color: COLORS.textSecondary },
   card: { backgroundColor: COLORS.successBg, borderRadius: RADIUS.md, padding: 16, marginTop: 6 },
   cardTitulo: { fontSize: 13, fontWeight: '600', color: '#27500A' },
   cardSubtitulo: { fontSize: 11, color: '#3B6D11', marginTop: 4, lineHeight: 15 },

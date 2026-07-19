@@ -4,6 +4,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProveedoresMaestro, ProveedoresSugeridos } from '../../supabase';
 import { usuarioActual } from '../../auth';
 import { COLORS, RADIUS } from '../../theme';
+import { BARRIOS_MEDELLIN } from '../../constants';
+
+// Sugerencias de barrio mientras se escribe — solo para reducir variantes de
+// escritura del mismo barrio (ayuda al matching del motor de cobertura). El
+// campo sigue siendo texto libre: no se valida ni se bloquea contra la lista.
+function SugerenciasBarrio({ texto, onSeleccionar }) {
+  const q = texto.trim().toLowerCase();
+  if (q.length < 2) return null;
+  const sugerencias = BARRIOS_MEDELLIN.filter((b) => b.toLowerCase().includes(q) && b.toLowerCase() !== q).slice(0, 5);
+  if (sugerencias.length === 0) return null;
+  return (
+    <View style={styles.sugerenciasFila}>
+      {sugerencias.map((s) => (
+        <TouchableOpacity key={s} style={styles.sugerenciaChip} onPress={() => onSeleccionar(s)}>
+          <Text style={styles.sugerenciaChipTexto}>{s}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
 
 function normalizarTexto(texto) {
   return (texto || '')
@@ -146,6 +166,7 @@ export default function CrearProveedorScreen({ route, navigation }) {
 
           <Text style={styles.label}>Barrio (opcional)</Text>
           <TextInput style={styles.input} placeholder="Ej. Belén" value={barrio} onChangeText={setBarrio} />
+          <SugerenciasBarrio texto={barrio} onSeleccionar={setBarrio} />
 
           <Text style={styles.label}>Dirección (opcional)</Text>
           <TextInput style={styles.input} placeholder="Ej. Cra 70 #45-12" value={direccion} onChangeText={setDireccion} />
@@ -174,6 +195,9 @@ const styles = StyleSheet.create({
   subtitulo: { fontSize: 13, color: COLORS.textSecondary, marginTop: 6, marginBottom: 20, lineHeight: 18 },
   label: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 6 },
   input: { height: 48, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.white, marginBottom: 16 },
+  sugerenciasFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -8, marginBottom: 16 },
+  sugerenciaChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.borderLight },
+  sugerenciaChipTexto: { fontSize: 12, color: COLORS.textSecondary },
   boton: { backgroundColor: COLORS.primary, height: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
   botonTexto: { color: COLORS.white, fontSize: 16, fontWeight: '600' },

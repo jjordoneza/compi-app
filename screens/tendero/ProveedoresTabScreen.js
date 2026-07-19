@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
-import { ProveedoresMaestro, RelacionesExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresSugeridosExt, CoberturaProveedor } from '../../supabase';
+import { ProveedoresMaestro, RelacionesExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresSugeridosExt, CoberturaProveedor, CoberturaSenalesNegativas } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
 
 // Mismo umbral que AgregarProveedorScreen — el badge "cubre tu zona" debe
@@ -78,7 +78,9 @@ export default function ProveedoresTabScreen({ navigation, route }) {
   // Siempre soft-delete (decisión de producto, 18 jul 2026): "Quitar
   // proveedor" nunca borra el catálogo/precios, con o sin historial de
   // pedidos — solo desactiva la relación. Reactivar desde Agregar proveedor
-  // siempre recupera todo.
+  // siempre recupera todo. "No cubre mi zona" además guarda la señal en
+  // cobertura_senales_negativas (migración 0010) — se guarda para análisis
+  // futuro, no cambia el comportamiento de quitar en sí.
   function iniciarEliminarProveedor(relacion, proveedor) {
     if (eliminandoId) return;
     Alert.alert(
@@ -86,15 +88,24 @@ export default function ProveedoresTabScreen({ navigation, route }) {
       `¿Quitar a ${proveedor.nombre} de tu lista? Tu catálogo, precios e historial con este proveedor quedan intactos — puedes volver a agregarlo cuando quieras y todo sigue ahí.`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Quitar', style: 'destructive', onPress: () => desactivarProveedor(relacion.id) },
+        {
+          text: 'No cubre mi zona',
+          onPress: () => desactivarProveedor(relacion.id, proveedor.id, 'fuera_de_zona'),
+        },
+        { text: 'Quitar', style: 'destructive', onPress: () => desactivarProveedor(relacion.id, proveedor.id, null) },
       ]
     );
   }
 
-  async function desactivarProveedor(relacionId) {
+  async function desactivarProveedor(relacionId, proveedorId, motivo) {
     setEliminandoId(relacionId);
     try {
       await RelacionesExt.actualizar(relacionId, { activo: false });
+      if (motivo) {
+        // Best-effort: si falla el guardado de la señal, no debe impedir que
+        // el proveedor quede quitado — no es parte crítica del flujo.
+        CoberturaSenalesNegativas.crear({ proveedor_id: proveedorId, comercio_id: comercioId, motivo }).catch(() => {});
+      }
       await cargar();
     } catch (e) {
       Alert.alert('Error quitando', e.message);

@@ -10,7 +10,11 @@ import { COLORS, RADIUS } from '../theme';
 // "sepa sus coordenadas" — solo que reconozca visualmente su negocio en el
 // mapa y, si el pin no cae exacto (ej. señal débil), lo arrastre.
 export default function ConfirmarUbicacionScreen({ route, navigation }) {
-  const { comercioId, comercioNombre, lat, lng } = route.params;
+  // volverAtras (usado por MiNegocioTenderoScreen al agregar ubicación a un
+  // comercio existente): en vez de seguir el paso de onboarding hacia
+  // ImportarContactos, regresa a donde vino. Sin este param, se mantiene el
+  // comportamiento original (flujo de registro).
+  const { comercioId, comercioNombre, lat, lng, volverAtras } = route.params;
   const [coords, setCoords] = useState({ latitude: lat, longitude: lng });
   const [guardando, setGuardando] = useState(false);
   const insets = useSafeAreaInsets();
@@ -23,7 +27,11 @@ export default function ConfirmarUbicacionScreen({ route, navigation }) {
       // No bloquea el registro por esto — mismo criterio que la captura
       // original de GPS (silenciosa, nunca frena el flujo del tendero).
     } finally {
-      navigation.navigate('ImportarContactos', { comercioId, comercioNombre });
+      if (volverAtras) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('ImportarContactos', { comercioId, comercioNombre });
+      }
     }
   }
 
