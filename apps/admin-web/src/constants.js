@@ -27,3 +27,22 @@ export const BARRIOS_MEDELLIN = [
   'La Gloria', 'Altavista', 'Zafra', 'Los Alpes', 'Las Violetas',
   'Nueva Villa de Aburrá', 'Miravalle', 'La Hondonada',
 ];
+
+// Lista de apoyo para el datalist de "ciudad" — misma lista que constants.js
+// del lado RN (nombrada por separado). NO es exhaustiva ni oficial, no se
+// valida contra ella, solo sugiere.
+export const CIUDADES_COLOMBIA = [
+  'Bogotá', 'Medellín', 'Cali', 'Barranquilla', 'Cartagena', 'Cúcuta', 'Bucaramanga',
+  'Pereira', 'Santa Marta', 'Ibagué', 'Pasto', 'Manizales', 'Neiva', 'Villavicencio',
+  'Armenia', 'Valledupar', 'Montería', 'Sincelejo', 'Popayán', 'Tunja', 'Florencia',
+  'Riohacha', 'Yopal', 'Quibdó', 'Arauca', 'Mocoa', 'San José del Guaviare',
+  'Puerto Carreño', 'Leticia', 'Inírida', 'Mitú', 'San Andrés',
+  'Soledad', 'Bello', 'Itagüí', 'Envigado', 'Sabaneta', 'La Estrella', 'Caldas',
+  'Copacabana', 'Girardota', 'Barbosa', 'Rionegro', 'Soacha', 'Chía', 'Zipaquirá',
+  'Facatativá', 'Fusagasugá', 'Girardot', 'Palmira', 'Buenaventura', 'Tuluá',
+  'Cartago', 'Buga', 'Jamundí', 'Yumbo', 'Dosquebradas', 'Magangué', 'Turbo',
+  'Apartadó', 'Sahagún', 'Ciénaga', 'Maicao', 'Tumaco', 'Ipiales', 'Duitama',
+  'Sogamoso', 'Chiquinquirá', 'Barrancabermeja', 'Piedecuesta', 'Floridablanca',
+  'Girón', 'Ocaña', 'Pitalito', 'Garzón', 'La Dorada', 'Chinchiná', 'Espinal',
+  'Honda', 'Aguachica',
+];

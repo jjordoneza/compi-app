@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listarProveedoresMaestro, crearProveedorMaestro, actualizarProveedorMaestro, listarStatsPorProveedor } from '../api';
-import { BARRIOS_MEDELLIN } from '../constants';
+import { BARRIOS_MEDELLIN, CIUDADES_COLOMBIA } from '../constants';
 import Modal from '../components/Modal';
 
 // Celular colombiano: 10 dígitos, empieza en 3 — mismo criterio que
@@ -124,7 +124,7 @@ function FilaProveedor({ item, stats, onGuardado }) {
         )}
       </td>
       <td>
-        {editando ? <input value={ciudad} onChange={(e) => setCiudad(e.target.value)} /> : item.ciudad || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+        {editando ? <input list="ciudades-list" value={ciudad} onChange={(e) => setCiudad(e.target.value)} /> : item.ciudad || <span style={{ color: 'var(--text-muted)' }}>—</span>}
       </td>
       <td>
         {editando ? <input list="barrios-list" value={barrio} onChange={(e) => setBarrio(e.target.value)} /> : item.barrio || <span style={{ color: 'var(--text-muted)' }}>—</span>}
@@ -273,6 +273,11 @@ export default function MaestroProveedores() {
           <option key={b} value={b} />
         ))}
       </datalist>
+      <datalist id="ciudades-list">
+        {CIUDADES_COLOMBIA.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
 
       {error && <p className="error">{error}</p>}
 
@@ -310,7 +315,7 @@ export default function MaestroProveedores() {
           </div>
           <div className="campoModal">
             <label>Ciudad</label>
-            <input value={nuevo.ciudad} onChange={(e) => campoNuevo('ciudad', e.target.value)} />
+            <input list="ciudades-list" value={nuevo.ciudad} onChange={(e) => campoNuevo('ciudad', e.target.value)} />
           </div>
           <div className="campoModal">
             <label>Barrio</label>

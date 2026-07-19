@@ -4,15 +4,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProveedoresMaestro, ProveedoresSugeridos } from '../../supabase';
 import { usuarioActual } from '../../auth';
 import { COLORS, RADIUS } from '../../theme';
-import { BARRIOS_MEDELLIN } from '../../constants';
+import { BARRIOS_MEDELLIN, CIUDADES_COLOMBIA } from '../../constants';
 
-// Sugerencias de barrio mientras se escribe — solo para reducir variantes de
-// escritura del mismo barrio (ayuda al matching del motor de cobertura). El
+// Sugerencias mientras se escribe (barrio o ciudad) — solo para reducir
+// variantes de escritura (ayuda al matching del motor de cobertura). El
 // campo sigue siendo texto libre: no se valida ni se bloquea contra la lista.
-function SugerenciasBarrio({ texto, onSeleccionar }) {
+function Sugerencias({ texto, lista, onSeleccionar }) {
   const q = texto.trim().toLowerCase();
   if (q.length < 2) return null;
-  const sugerencias = BARRIOS_MEDELLIN.filter((b) => b.toLowerCase().includes(q) && b.toLowerCase() !== q).slice(0, 5);
+  const sugerencias = lista.filter((b) => b.toLowerCase().includes(q) && b.toLowerCase() !== q).slice(0, 5);
   if (sugerencias.length === 0) return null;
   return (
     <View style={styles.sugerenciasFila}>
@@ -163,10 +163,11 @@ export default function CrearProveedorScreen({ route, navigation }) {
 
           <Text style={styles.label}>Ciudad (opcional)</Text>
           <TextInput style={styles.input} placeholder="Ej. Medellín" value={ciudad} onChangeText={setCiudad} />
+          <Sugerencias texto={ciudad} lista={CIUDADES_COLOMBIA} onSeleccionar={setCiudad} />
 
           <Text style={styles.label}>Barrio (opcional)</Text>
           <TextInput style={styles.input} placeholder="Ej. Belén" value={barrio} onChangeText={setBarrio} />
-          <SugerenciasBarrio texto={barrio} onSeleccionar={setBarrio} />
+          <Sugerencias texto={barrio} lista={BARRIOS_MEDELLIN} onSeleccionar={setBarrio} />
 
           <Text style={styles.label}>Dirección (opcional)</Text>
           <TextInput style={styles.input} placeholder="Ej. Cra 70 #45-12" value={direccion} onChangeText={setDireccion} />

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listarComercios, actualizarComercio } from '../api';
-import { BARRIOS_MEDELLIN } from '../constants';
+import { BARRIOS_MEDELLIN, CIUDADES_COLOMBIA } from '../constants';
+
+const DATALIST_POR_CAMPO = { barrio: 'barrios-list', ciudad: 'ciudades-list' };
 
 // Único lugar donde se edita comercios directo, sin cola de aprobación — el
 // admin es el único que ve esta pantalla. No hay crear/eliminar a mano: los
@@ -85,7 +87,7 @@ function FilaComercio({ item, onGuardado }) {
         <td key={c.key}>
           {editando ? (
             <input
-              list={c.key === 'barrio' ? 'barrios-list' : undefined}
+              list={DATALIST_POR_CAMPO[c.key]}
               value={valores[c.key]}
               onChange={(e) => setCampo(c.key, e.target.value)}
             />
@@ -177,6 +179,11 @@ export default function MaestroNegocios() {
       <datalist id="barrios-list">
         {BARRIOS_MEDELLIN.map((b) => (
           <option key={b} value={b} />
+        ))}
+      </datalist>
+      <datalist id="ciudades-list">
+        {CIUDADES_COLOMBIA.map((c) => (
+          <option key={c} value={c} />
         ))}
       </datalist>
 

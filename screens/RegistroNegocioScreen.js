@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Cuenta, ComerciosExt, ComercioPorTelefono } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
-import { BARRIOS_MEDELLIN } from '../constants';
+import { BARRIOS_MEDELLIN, CIUDADES_COLOMBIA } from '../constants';
 
 const CATEGORIAS = [
   { value: 'tienda_barrio', label: 'Tienda de barrio' },
@@ -42,13 +42,13 @@ function ChipSelector({ opciones, valor, onCambiar }) {
   );
 }
 
-// Sugerencias de barrio mientras se escribe — solo para reducir variantes de
-// escritura del mismo barrio (ayuda al matching del motor de cobertura). El
+// Sugerencias mientras se escribe (barrio o ciudad) — solo para reducir
+// variantes de escritura (ayuda al matching del motor de cobertura). El
 // campo sigue siendo texto libre: no se valida ni se bloquea contra la lista.
-function SugerenciasBarrio({ texto, onSeleccionar }) {
+function Sugerencias({ texto, lista, onSeleccionar }) {
   const q = texto.trim().toLowerCase();
   if (q.length < 2) return null;
-  const sugerencias = BARRIOS_MEDELLIN.filter((b) => b.toLowerCase().includes(q) && b.toLowerCase() !== q).slice(0, 5);
+  const sugerencias = lista.filter((b) => b.toLowerCase().includes(q) && b.toLowerCase() !== q).slice(0, 5);
   if (sugerencias.length === 0) return null;
   return (
     <View style={styles.sugerenciasFila}>
@@ -205,10 +205,11 @@ export default function RegistroNegocioScreen({ route, navigation }) {
 
         <Text style={styles.label}>Ciudad</Text>
         <TextInput style={styles.input} placeholder="Ej. Bogotá" value={ciudad} onChangeText={setCiudad} />
+        <Sugerencias texto={ciudad} lista={CIUDADES_COLOMBIA} onSeleccionar={setCiudad} />
 
         <Text style={styles.label}>Barrio</Text>
         <TextInput style={styles.input} placeholder="Ej. La América" value={barrio} onChangeText={setBarrio} />
-        <SugerenciasBarrio texto={barrio} onSeleccionar={setBarrio} />
+        <Sugerencias texto={barrio} lista={BARRIOS_MEDELLIN} onSeleccionar={setBarrio} />
 
         <Text style={styles.label}>¿Cuál es la dirección de este negocio?</Text>
         <TextInput style={styles.input} placeholder="Ej. Cra 45 #12-30" value={direccion} onChangeText={setDireccion} />
