@@ -19,17 +19,19 @@ Este documento registra huecos de lógica, arquitectura y pantallas encontrados 
 
 ## Prioridad 2 — Riesgos estructurales, no bloquean uso inmediato
 
-### 1. Fricción: productos de "Pegar pedido" nacen sin precio (reclasificado de P1 → P2, 15 jul 2026)
+### 1. Fricción: productos de "Pegar pedido" nacen sin precio — ✅ resuelto (19 jul 2026)
 **Corrección de la premisa original** ("no existe pantalla para fijar el precio"): el tendero **sí puede** fijar `precio_pactado` directamente, sin cola de curaduría admin, en 3 lugares — el precio es dato privado de la relación tienda-proveedor y se escribe directo vía `ProductosRelacionExt.actualizar`:
 - **Detalle de proveedor** (`RelacionDetalleScreen`): "Poner precio" / "editar" por producto, y agregar un producto con precio.
 - **Nuevo abastecimiento** (`NuevoAbastecimientoScreen`): "Sin precio configurado · tócalo para ponerlo", guarda el precio inline mientras se arma el pedido.
 - **Confirmar pedido** (`ConfirmarPedidoScreen`): no bloquea confirmar; muestra "sin precio" por ítem, "Precio incompleto" por proveedor y total "Incompleto".
 
-Por eso **no bloquea el flujo básico** (baja de P1 a P2). El residual es de **fricción**: los productos creados desde "Pegar pedido" / "Catálogo detectado" (`PegarPedidoScreen`) y el loop de onboarding nacen con `precio_pactado = null` y ese flujo **no invita a ponerles precio ahí mismo** — quedan sin precio hasta que el tendero los tope por otra pantalla.
+El residual era de **fricción**: los productos creados desde "Pegar pedido" / "Catálogo detectado" (`PegarPedidoScreen`) nacían con `precio_pactado = null` y ese flujo no invitaba a ponerles precio ahí mismo.
 
 **Decidido:** el precio se fija directo por el tendero, sin curaduría (ratifica el diseño ya implementado). La curaduría admin queda reservada solo para la **existencia** del producto/proveedor en el catálogo maestro compartido.
 
-**Pendiente (implementación):** campo de precio opcional por producto en "Catálogo detectado" (Pegar Pedido) + opcionalmente un empujón tocable "faltan N precios · ponlos ahora" en Confirmar pedido. Sin pantalla nueva ni cambios en el modelo de datos.
+**Implementado (19 jul 2026), sin migración ni pantalla nueva:**
+- `PegarPedidoScreen`: campo de precio opcional (`$`, teclado numérico) por producto detectado. Se manda como `precio_pactado` tanto si el ítem se vincula directo (`ProductosRelacionExt.crear`) como si va a curaduría (`ProductosSugeridos.crear` — la columna `precio_pactado` ya existía ahí desde la migración `0003` y `aprobar_producto_sugerido` ya la copiaba a `productos_relacion` al aprobar, así que no había nada que tocar en el backend).
+- `ConfirmarPedidoScreen`: banner "Faltan N precios · ponlos ahora" cuando hay ítems sin precio, tocable. Cada ítem sin precio también es tocable directo ("tócalo para ponerlo"), con el mismo patrón de edición inline que `NuevoAbastecimientoScreen` (`ProductosRelacionExt.actualizar` + estado local `grupos`, en vez de navegar a otra pantalla y perder el borrador del pedido). El total estimado y "Precio incompleto" por proveedor se recalculan en vivo tras cada precio guardado.
 
 ### 5. Sin decisión de infraestructura de notificaciones push
 La pantalla de Notificaciones y el diseño de "notificaciones agrupadas por comercio" del Motor de Reabastecimiento Predictivo asumen push funcionando, pero no hay decisión de qué servicio usar (candidato natural: Expo Push Notifications, ya que el proyecto es Expo) ni manejo de permisos/tokens.
@@ -152,6 +154,16 @@ Contexto de arranque para la próxima sesión, sin necesidad de que el usuario l
 - **Todas las tareas de la auditoría manual del usuario (2 rondas, ~19 ítems entre las dos) están cerradas** — ver las dos entradas de arriba ("Auditoría manual 'Sección A'..." del 18 jul y "Segunda ronda de auditoría manual..." del 19 jul) para el detalle completo de cada fix.
 - **Pendiente explícito, sin resolver**: el rediseño visual de `apps/admin-web` sigue sin dirección definida — el usuario rechazó "Nothing Design" pero no dio una alternativa. Si en la próxima sesión se retoma el tema de la identidad visual del panel admin, hay que preguntar de cero qué dirección quiere (no asumir, no reofrecer la misma).
 - **Reglas de trabajo que siguen vigentes** (ya las conoce quien siga esta sesión, pero quedan aquí por si se pierden en compactación): usar `TaskCreate`/`TaskUpdate` al arrancar bloques de trabajo; revisar `ls supabase/migrations/ | tail` antes de numerar una migración nueva; toda migración de esquema lleva `.sql` + `.rollback.sql` con comentario del porqué; no hay CLI de Supabase — decir siempre explícitamente qué aplicar a mano; buscar patrones ya resueltos en el repo antes de inventar uno nuevo; no scope-creep (anotar en este archivo, no arreglar sin que se pida); verificar siempre antes de dar algo por listo (`node --check` en `.js` de `screens/`, `npm run build` en `apps/admin-web`, sanity check de SQL — este archivo ya tiene el patrón de cómo se hizo un sanity check real con un Postgres local stub, ver la migración `0035`); al cerrar un bloque: commit con mensaje explicando el porqué, entrada fechada en este archivo, y abrir PR sin esperar a que se pida (revisando primero si el PR anterior ya se mergeó).
+
+## Nueva sesión — precio en Pegar Pedido (P2 #1) cerrado — 19 jul 2026
+
+Continuación de la sesión anterior, misma fecha. El usuario pidió listar pendientes; se le presentó la lista de arriba (P2 #1, #5, #9; P3 #7, #8; nota de seguridad de estado de pedido; rediseño admin-web; términos de uso; `catalogo-matching-unidades.md`) y eligió arrancar por **P2 #1** (precio en Pegar Pedido) por ser chico, sin cambios de modelo, y directamente alineado con el héroe del MVP (resurtir rápido).
+
+**Rama de trabajo**: `claude/compi-project-revision-rvqkbq`, creada fresca desde `origin/main` (`d8838cd`, que ya incluye los PRs #46/#47 de la sesión anterior) — sin necesidad de rebase.
+
+Detalle del fix en la entrada de P2 #1 (arriba, sección Prioridad 2). Verificado: `node --check` en todos los `.js` de `screens/` (no solo los 2 tocados). `npm run build` de `apps/admin-web` **no se corrió** — no se tocó ningún archivo de `apps/admin-web` en este bloque y el `node_modules` de esa app no está instalado en este entorno (no es una regresión introducida aquí). Sin migraciones — el campo `precio_pactado` en `productos_sugeridos` y su copiado en `aprobar_producto_sugerido` ya existían desde antes (`0003`/`0011`).
+
+**Quedan pendientes** los mismos ítems ya listados arriba (P2 #5 push, P2 #9 cabos sueltos de cobertura, P3 #7/#8, nota de seguridad de estado de pedido sin RPC, rediseño admin-web sin dirección, términos de uso/privacidad, `catalogo-matching-unidades.md` retomable) — ninguno se tocó en este bloque.
 
 ## Pendientes ya registrados de conversaciones anteriores (no son de esta revisión, se listan para no perderlos)
 

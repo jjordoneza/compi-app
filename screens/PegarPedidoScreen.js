@@ -5,6 +5,11 @@ import { usuarioActual } from '../auth';
 import { extraerProductosDePedido } from '../ai';
 import { COLORS, RADIUS } from '../theme';
 
+function limpiarNumero(texto) {
+  const soloDigitos = texto.replace(/[^0-9]/g, '');
+  return soloDigitos ? parseInt(soloDigitos, 10) : null;
+}
+
 export default function PegarPedidoScreen({ route, navigation }) {
   const { comercioId, comercioNombre, relacionId, proveedorNombre } = route.params;
   const [texto, setTexto] = useState('');
@@ -13,6 +18,10 @@ export default function PegarPedidoScreen({ route, navigation }) {
   // index -> 'si' | 'no', solo para ítems con coincidencia — decide si se
   // vincula al producto existente o se manda a curaduría como distinto.
   const [confirmaciones, setConfirmaciones] = useState({});
+  // index -> texto del precio (opcional). Se manda tal cual como
+  // precio_pactado/precio_pactado de productos_sugeridos — en ambos casos
+  // el backend ya sabe qué hacer con él (directo o al aprobar la sugerencia).
+  const [precios, setPrecios] = useState({});
   const [guardando, setGuardando] = useState(false);
   // Índices ya guardados con éxito, para que un reintento tras fallo parcial
   // no vuelva a crear los mismos productos.
@@ -35,6 +44,10 @@ export default function PegarPedidoScreen({ route, navigation }) {
 
   function confirmarCoincidencia(index, valor) {
     setConfirmaciones((prev) => ({ ...prev, [index]: valor }));
+  }
+
+  function actualizarPrecio(index, texto) {
+    setPrecios((prev) => ({ ...prev, [index]: texto }));
   }
 
   const faltaConfirmar = (detectados || []).some((item, i) => item.coincidencia && !confirmaciones[i]);
@@ -67,11 +80,12 @@ export default function PegarPedidoScreen({ route, navigation }) {
         // producto EXISTENTE, sin curaduría (docs/catalogo-matching-unidades.md).
         // Sin coincidencia, o el tendero dijo "no, es distinto": va a la cola.
         const esElMismo = item.coincidencia && confirmaciones[i] === 'si';
+        const precioPactado = limpiarNumero(precios[i] || '');
         if (esElMismo) {
           const productoRelacionCreado = await ProductosRelacionExt.crear({
             relacion_id: relacionId,
             producto_id: item.coincidencia.id,
-            precio_pactado: null,
+            precio_pactado: precioPactado,
             presentacion: item.presentacion || null,
             factor_conversion: item.factor_conversion || 1,
             unidad_pedido: item.unidad_pedido || null,
@@ -89,6 +103,7 @@ export default function PegarPedidoScreen({ route, navigation }) {
             unidad_base: item.unidad_base || null,
             factor_conversion: item.factor_conversion || null,
             unidad_pedido: item.unidad_pedido || null,
+            precio_pactado: precioPactado,
             estado: 'pendiente',
           });
         }
@@ -191,6 +206,17 @@ export default function PegarPedidoScreen({ route, navigation }) {
                   </TouchableOpacity>
                 </View>
 
+                <View style={styles.filaPrecio}>
+                  <Text style={styles.precioLabel}>$</Text>
+                  <TextInput
+                    style={styles.inputPrecio}
+                    keyboardType="numeric"
+                    placeholder="Precio (opcional)"
+                    value={precios[i] || ''}
+                    onChangeText={(v) => actualizarPrecio(i, v)}
+                  />
+                </View>
+
                 {item.coincidencia && (
                   <View style={styles.coincidenciaBox}>
                     <Text style={styles.coincidenciaTexto}>
@@ -263,6 +289,9 @@ const styles = StyleSheet.create({
   stepperTexto: { fontSize: 16, color: COLORS.primary, fontWeight: '600' },
   stepperNumero: { fontSize: 14, fontWeight: '600', color: COLORS.text, minWidth: 18, textAlign: 'center' },
   quitarTexto: { fontSize: 11, color: COLORS.error, fontWeight: '600' },
+  filaPrecio: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  precioLabel: { fontSize: 13, color: COLORS.textSecondary },
+  inputPrecio: { flex: 1, height: 38, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.sm, paddingHorizontal: 10, fontSize: 13, color: COLORS.text, backgroundColor: COLORS.white },
   coincidenciaBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: COLORS.borderLight },
   coincidenciaTexto: { fontSize: 12, color: COLORS.text, lineHeight: 16 },
   coincidenciaBotones: { flexDirection: 'row', gap: 8, marginTop: 8 },
