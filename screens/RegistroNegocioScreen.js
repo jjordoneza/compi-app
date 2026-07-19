@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Cuenta, ComerciosExt } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
@@ -57,6 +58,8 @@ async function capturarUbicacion() {
 }
 
 export default function RegistroNegocioScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
+  const [alturaFooter, setAlturaFooter] = useState(90);
   const { telefono } = route.params;
   const [nombre, setNombre] = useState('');
   const [ciudad, setCiudad] = useState('');
@@ -76,14 +79,14 @@ export default function RegistroNegocioScreen({ route, navigation }) {
     setProveedoresTotales((prev) => Math.max(0, prev + delta));
   }
 
-  // Todos los campos son obligatorios (decisión de producto, 18 jul 2026) —
-  // antes solo el nombre lo era.
+  // Todos los campos son obligatorios (decisión de producto, 18 jul 2026)
+  // excepto "Detalles de ubicación" (ajuste 19 jul 2026: vuelve a opcional,
+  // es un complemento de la dirección, no siempre aplica).
   const formCompleto =
     nombre.trim() &&
     ciudad.trim() &&
     barrio.trim() &&
     direccion.trim() &&
-    detalles.trim() &&
     contactoNombre.trim() &&
     categoria &&
     canalAdquisicion;
@@ -140,8 +143,9 @@ export default function RegistroNegocioScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 70, paddingHorizontal: 26, paddingBottom: 40 }}>
+    <View style={{ flex: 1 }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
+        <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 70, paddingHorizontal: 26, paddingBottom: alturaFooter + insets.bottom + 20 }}>
         <Text style={styles.titulo}>Cuéntanos de tu negocio</Text>
         <Text style={styles.subtitulo}>Así podemos ayudarte a organizar mejor tus pedidos.</Text>
 
@@ -154,10 +158,10 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         <Text style={styles.label}>Barrio</Text>
         <TextInput style={styles.input} placeholder="Ej. La América" value={barrio} onChangeText={setBarrio} />
 
-        <Text style={styles.label}>Dirección</Text>
+        <Text style={styles.label}>¿Cuál es la dirección de este negocio?</Text>
         <TextInput style={styles.input} placeholder="Ej. Cra 45 #12-30" value={direccion} onChangeText={setDireccion} />
 
-        <Text style={styles.label}>Detalles de ubicación</Text>
+        <Text style={styles.label}>Detalles de ubicación (opcional)</Text>
         <TextInput
           style={styles.input}
           placeholder="Ej. Apto 302, Torre B, Urb. Los Robles"
@@ -201,7 +205,13 @@ export default function RegistroNegocioScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
         </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
+      <View
+        style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}
+        onLayout={(e) => setAlturaFooter(e.nativeEvent.layout.height)}
+      >
         <TouchableOpacity
           style={[styles.boton, (!formCompleto || guardando) && styles.botonDeshabilitado]}
           disabled={!formCompleto || guardando}
@@ -209,8 +219,8 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         >
           <Text style={styles.botonTexto}>{guardando ? 'Guardando...' : 'Continuar'}</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+    </View>
   );
 }
 
@@ -233,7 +243,8 @@ const styles = StyleSheet.create({
   stepperTexto: { fontSize: 20, color: COLORS.primary, fontWeight: '600' },
   stepperNumero: { fontSize: 22, fontWeight: '700', color: COLORS.text, minWidth: 30, textAlign: 'center' },
   stepperInput: { fontSize: 22, fontWeight: '700', color: COLORS.text, minWidth: 60, textAlign: 'center', padding: 0 },
-  boton: { marginTop: 24, backgroundColor: COLORS.primary, height: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  boton: { backgroundColor: COLORS.primary, height: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
   botonTexto: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.bg, paddingHorizontal: 26, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: COLORS.borderLight },
 });

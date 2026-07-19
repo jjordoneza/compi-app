@@ -347,6 +347,12 @@ button:disabled {
   white-space: nowrap;
 }
 
+.detalleSugerido {
+  padding: 0 14px 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
 .panel {
   border-top: 1px solid var(--border);
   padding: 14px;
@@ -388,6 +394,12 @@ button:disabled {
   letter-spacing: 0.03em;
   padding: 1px 7px;
   border-radius: 999px;
+}
+
+.pillDuplicado {
+  color: #8a4b00;
+  font-weight: 700;
+  font-size: 11px;
 }
 
 .pillAlta { display: inline-block; background: var(--good); color: #ffffff; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 7px; border-radius: 999px; }

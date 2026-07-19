@@ -86,9 +86,16 @@ export default function AgregarProveedorScreen({ route, navigation }) {
   }
 
   const idsActivos = relacionesTodas.filter((r) => r.activo).map((r) => r.proveedor_id);
+  const busquedaDigitos = busqueda.replace(/\D/g, '');
   const disponibles = todosLosProveedores
     .filter((p) => !idsActivos.includes(p.id))
-    .filter((p) => p.nombre.toLowerCase().includes(busqueda.toLowerCase()));
+    .filter((p) => {
+      const coincideNombre = p.nombre.toLowerCase().includes(busqueda.toLowerCase());
+      // Buscar por celular también — mismo dato con el que el tendero conoce
+      // al proveedor de la vida real, no siempre por el nombre en el Maestro.
+      const coincideTelefono = busquedaDigitos.length >= 3 && (p.telefono || '').includes(busquedaDigitos);
+      return coincideNombre || coincideTelefono;
+    });
 
   const disponiblesDelBarrio = disponibles
     .filter((p) => (cobertura[p.id]?.confianza || 0) >= UMBRAL_COBERTURA)
@@ -142,7 +149,7 @@ export default function AgregarProveedorScreen({ route, navigation }) {
         <Text style={styles.titulo}>Agregar proveedor</Text>
         <Text style={styles.subtitulo}>Elige uno o varios del catálogo de Compi para vincularlos a tu negocio</Text>
 
-        <TextInput style={styles.buscador} placeholder="Buscar proveedor..." value={busqueda} onChangeText={setBusqueda} />
+        <TextInput style={styles.buscador} placeholder="Buscar por nombre o celular..." value={busqueda} onChangeText={setBusqueda} />
 
         {disponiblesDelBarrio.length > 0 && (
           <>
@@ -155,6 +162,13 @@ export default function AgregarProveedorScreen({ route, navigation }) {
         {disponiblesOtros.length > 0 ? disponiblesOtros.map(renderProveedor) : (
           <Text style={styles.vacio}>No hay más proveedores para agregar</Text>
         )}
+
+        <TouchableOpacity
+          style={styles.botonCrearProveedor}
+          onPress={() => navigation.navigate('CrearProveedor', { comercioId })}
+        >
+          <Text style={styles.botonCrearProveedorTexto}>+ Crear proveedor nuevo</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {seleccionados.length > 0 && (
@@ -194,6 +208,8 @@ const styles = StyleSheet.create({
   checkActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkTexto: { color: COLORS.white, fontSize: 12, fontWeight: '700' },
   vacio: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 8, marginBottom: 8, fontSize: 12 },
+  botonCrearProveedor: { marginTop: 16, height: 48, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  botonCrearProveedorTexto: { color: COLORS.primary, fontWeight: '600', fontSize: 14 },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.white, borderTopWidth: 0.5, borderTopColor: COLORS.borderLight, padding: 16 },
   botonGuardar: { height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonTexto: { color: COLORS.white, fontWeight: '600' },
