@@ -205,12 +205,17 @@ export async function buscarProductos(query) {
   return data;
 }
 
+// Devuelve el proveedores_maestro resultante (creado o vinculado) — lo usa
+// ProveedoresNuevos.jsx para la resolución en cascada: al aprobar duplicados
+// del mismo proveedor real, todos deben vincularse al MISMO maestro_id, nunca
+// dejar que cada aprobación cree uno nuevo.
 export async function aprobarProveedor(sugeridoId, proveedorMaestroId) {
-  const { error } = await supabase.rpc('aprobar_proveedor_sugerido', {
+  const { data, error } = await supabase.rpc('aprobar_proveedor_sugerido', {
     p_sugerido_id: sugeridoId,
     p_proveedor_maestro_id: proveedorMaestroId || null,
   });
   if (error) throw error;
+  return data?.[0] || null;
 }
 
 export async function rechazarProveedor(sugeridoId, motivo) {

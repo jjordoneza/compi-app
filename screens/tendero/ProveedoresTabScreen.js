@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
-import { ProveedoresMaestro, RelacionesExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresSugeridosExt } from '../../supabase';
+import { ProveedoresMaestro, RelacionesExt, SugerenciasCambio, SugerenciasCambioExt, ProveedoresSugeridosExt, CoberturaProveedor } from '../../supabase';
 import { COLORS, RADIUS } from '../../theme';
+
+// Mismo umbral que AgregarProveedorScreen — el badge "cubre tu zona" debe
+// significar lo mismo en toda la app, no solo al momento de elegir proveedor.
+const UMBRAL_COBERTURA = 0.3;
 
 const ETIQUETAS_SUG = { pendiente: 'Pendiente', aprobada: 'Aprobado', rechazada: 'Rechazado' };
 // proveedores_sugeridos usa 'aprobado'/'rechazado' (sin la 'a' de género),
@@ -16,6 +20,7 @@ export default function ProveedoresTabScreen({ navigation, route }) {
   // Proveedores que este comercio propuso (vía Importar contactos) y todavía
   // no están vinculados — antes no se veía su estado en ningún lado de la app.
   const [proveedoresPropuestos, setProveedoresPropuestos] = useState([]);
+  const [cobertura, setCobertura] = useState({}); // proveedor_id -> { confianza, diaSemanaDominante }
   const [busqueda, setBusqueda] = useState('');
   const [eliminandoId, setEliminandoId] = useState(null);
 
@@ -42,6 +47,20 @@ export default function ProveedoresTabScreen({ navigation, route }) {
       const sugs = await SugerenciasCambioExt.listarPorComercio(comercioId);
       setSugerencias(sugs);
       const propuestos = await ProveedoresSugeridosExt.listarPorComercio(comercioId);
+      // Mismo motor de confianza de cobertura que AgregarProveedorScreen — si
+      // falla, no bloquea la pantalla, solo no se muestra el badge.
+      CoberturaProveedor.confianza(comercioId)
+        .then((filas) => {
+          const mapa = {};
+          (filas || []).forEach((fila) => {
+            mapa[fila.proveedor_id] = {
+              confianza: Number(fila.confianza) || 0,
+              diaSemanaDominante: fila.dia_semana_dominante,
+            };
+          });
+          setCobertura(mapa);
+        })
+        .catch(() => {});
       // Una vez aprobado, el proveedor ya aparece en la lista principal de abajo
       // (vinculado) — mostrarlo también aquí sería redundante.
       setProveedoresPropuestos(propuestos.filter((p) => p.estado !== 'aprobado'));
@@ -136,8 +155,13 @@ export default function ProveedoresTabScreen({ navigation, route }) {
     return sugerencias.find((s) => s.proveedor_id === proveedorId);
   }
 
+  const busquedaDigitos = busqueda.replace(/\D/g, '');
   const filtrados = relacionesLista
-    .filter((x) => x.proveedor.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    .filter((x) => {
+      const coincideNombre = x.proveedor.nombre.toLowerCase().includes(busqueda.toLowerCase());
+      const coincideTelefono = busquedaDigitos.length >= 3 && (x.proveedor.telefono || '').includes(busquedaDigitos);
+      return coincideNombre || coincideTelefono;
+    })
     .sort((a, b) => a.proveedor.nombre.localeCompare(b.proveedor.nombre, 'es'));
 
   return (
@@ -163,7 +187,7 @@ export default function ProveedoresTabScreen({ navigation, route }) {
         </View>
       )}
 
-      <TextInput style={styles.buscador} placeholder="Buscar proveedor..." value={busqueda} onChangeText={setBusqueda} />
+      <TextInput style={styles.buscador} placeholder="Buscar por nombre o celular..." value={busqueda} onChangeText={setBusqueda} />
 
       {filtrados.length === 0 && <Text style={styles.vacio}>No tienes proveedores todavía</Text>}
 
@@ -173,6 +197,7 @@ export default function ProveedoresTabScreen({ navigation, route }) {
         const enPropuesta = proponiendoId === proveedor.id;
         const sugerencia = ultimaSugerenciaPara(proveedor.id);
         const puedeProponerNueva = !sugerencia || sugerencia.estado !== 'pendiente';
+        const cubreZona = (cobertura[proveedor.id]?.confianza || 0) >= UMBRAL_COBERTURA;
 
         return (
           <View key={relacion.id} style={styles.item}>
@@ -181,6 +206,7 @@ export default function ProveedoresTabScreen({ navigation, route }) {
             >
               <Text style={styles.itemNombre}>{proveedor.nombre}</Text>
               <Text style={styles.itemSub}>{proveedor.categoria || 'Sin categoría'}</Text>
+              {cubreZona && <Text style={styles.badgeCobertura}>📍 Cubre tu zona</Text>}
               <Text style={styles.linkVerProductos}>Ver / agregar productos y precios →</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -284,6 +310,7 @@ const styles = StyleSheet.create({
   itemNombre: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   itemSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   linkVerProductos: { fontSize: 12, color: COLORS.primary, fontWeight: '600', marginTop: 6 },
+  badgeCobertura: { fontSize: 11, color: COLORS.success, fontWeight: '600', marginTop: 4 },
   linkPegarPedido: { fontSize: 12, color: COLORS.success, fontWeight: '600', marginTop: 6 },
   label: { fontSize: 11, color: COLORS.textSecondary, marginTop: 10, marginBottom: 4 },
   tocable: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },

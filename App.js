@@ -22,6 +22,7 @@ import PedidoEnviadoScreen from './screens/tendero/PedidoEnviadoScreen';
 import SeguimientoScreen from './screens/tendero/SeguimientoScreen';
 import ReabastecimientoRespuestaScreen from './screens/tendero/ReabastecimientoRespuestaScreen';
 import AgregarProveedorScreen from './screens/tendero/AgregarProveedorScreen';
+import CrearProveedorScreen from './screens/tendero/CrearProveedorScreen';
 import PegarPedidoScreen from './screens/PegarPedidoScreen';
 import { COLORS } from './theme';
 
@@ -116,6 +117,11 @@ export default function App() {
             name="AgregarProveedor"
             component={AgregarProveedorScreen}
             options={({ navigation }) => ({ title: 'Agregar proveedor', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
+          <Stack.Screen
+            name="CrearProveedor"
+            component={CrearProveedorScreen}
+            options={({ navigation }) => ({ title: 'Crear proveedor', headerLeft: () => <BotonVolver navigation={navigation} /> })}
           />
           <Stack.Screen
             name="PegarPedido"

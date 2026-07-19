@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ComerciosExt } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
 
@@ -12,6 +13,7 @@ export default function ConfirmarUbicacionScreen({ route, navigation }) {
   const { comercioId, comercioNombre, lat, lng } = route.params;
   const [coords, setCoords] = useState({ latitude: lat, longitude: lng });
   const [guardando, setGuardando] = useState(false);
+  const insets = useSafeAreaInsets();
 
   async function confirmar() {
     setGuardando(true);
@@ -43,7 +45,7 @@ export default function ConfirmarUbicacionScreen({ route, navigation }) {
         />
       </MapView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
         <TouchableOpacity style={[styles.boton, guardando && { opacity: 0.5 }]} disabled={guardando} onPress={confirmar}>
           <Text style={styles.botonTexto}>{guardando ? 'Guardando...' : 'Confirmar ubicación'}</Text>
         </TouchableOpacity>

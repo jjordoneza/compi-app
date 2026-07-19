@@ -341,16 +341,20 @@ export default function RelacionDetalleScreen({ route, navigation }) {
             <Text style={styles.label}>Dirección del proveedor</Text>
             <Text style={styles.valorSoloLectura}>{proveedorMaestro?.direccion || '—'}</Text>
 
+            <View style={styles.separadorEditable}>
+              <Text style={styles.labelEditable}>Esto sí lo puedes cambiar tú</Text>
+            </View>
+
             <View style={styles.filaSwitch}>
-              <Text style={styles.label}>Entrega en tu tienda</Text>
+              <Text style={styles.labelCampoEditable}>Entrega en tu tienda</Text>
               <Switch value={entregaEnTienda} onValueChange={setEntregaEnTienda} trackColor={{ true: COLORS.primary }} />
             </View>
-            <Text style={styles.label}>Días de pedido</Text>
-            <TextInput style={styles.input} placeholder="Ej. Lunes y jueves" value={diasPedido} onChangeText={setDiasPedido} />
-            <Text style={styles.label}>Pedido mínimo ($)</Text>
-            <TextInput style={styles.input} placeholder="Ej. 30000" keyboardType="numeric" value={minimoPedido} onChangeText={setMinimoPedido} />
+            <Text style={styles.labelCampoEditable}>Días de pedido</Text>
+            <TextInput style={styles.inputEditable} placeholder="Ej. Lunes y jueves" value={diasPedido} onChangeText={setDiasPedido} />
+            <Text style={styles.labelCampoEditable}>Pedido mínimo ($)</Text>
+            <TextInput style={styles.inputEditable} placeholder="Ej. 30000" keyboardType="numeric" value={minimoPedido} onChangeText={setMinimoPedido} />
             <View style={styles.filaSwitch}>
-              <Text style={styles.label}>¿Te fía este proveedor?</Text>
+              <Text style={styles.labelCampoEditable}>¿Te fía este proveedor?</Text>
               <Switch value={aceptaCredito} onValueChange={setAceptaCredito} trackColor={{ true: COLORS.primary }} />
             </View>
             <TouchableOpacity style={styles.boton} onPress={guardarDatosContacto}>
@@ -541,6 +545,14 @@ const styles = StyleSheet.create({
   valorSoloLectura: { fontSize: 14, color: COLORS.text, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.borderLight, borderRadius: RADIUS.md, paddingHorizontal: 14, paddingVertical: 12 },
   input: { height: 46, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.bg, marginBottom: 10 },
   filaSwitch: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  // A partir de aquí son los únicos 4 campos que el tendero sí puede editar
+  // (entrega_en_tienda, dias_pedido, minimo_pedido, acepta_credito) — todo lo
+  // de arriba es solo-lectura (dato del proveedor, lo cura el admin). El
+  // título + color distinto evita que parezca que también esos son editables.
+  separadorEditable: { borderTopWidth: 1, borderTopColor: COLORS.borderLight, marginTop: 16, paddingTop: 12 },
+  labelEditable: { fontSize: 12, color: COLORS.primary, fontWeight: '700' },
+  labelCampoEditable: { fontSize: 12, color: COLORS.primary, fontWeight: '600', marginBottom: 6, marginTop: 8 },
+  inputEditable: { height: 46, borderWidth: 1, borderColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.white, marginBottom: 10 },
   boton: { marginTop: 14, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonTexto: { color: COLORS.white, fontWeight: '600' },
   item: { backgroundColor: COLORS.white, padding: 14, borderRadius: RADIUS.md, marginBottom: 8, borderWidth: 0.5, borderColor: COLORS.borderLight },
