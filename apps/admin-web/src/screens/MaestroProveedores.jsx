@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listarProveedoresMaestro, crearProveedorMaestro, actualizarProveedorMaestro, listarStatsPorProveedor } from '../api';
+import { BARRIOS_MEDELLIN } from '../constants';
 
 const CATEGORIAS = [
   'Huevos', 'Lácteos', 'Bebidas', 'Snacks', 'Aseo',
@@ -48,6 +49,7 @@ function FilaProveedor({ item, stats, onGuardado }) {
   const [direccion, setDireccion] = useState(item.direccion || '');
   const [contactoNombre, setContactoNombre] = useState(item.contacto_nombre || '');
   const [telefonoSecundario, setTelefonoSecundario] = useState(item.telefono_secundario || '');
+  const [zonasCobertura, setZonasCobertura] = useState(item.zonas_cobertura || '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -64,6 +66,7 @@ function FilaProveedor({ item, stats, onGuardado }) {
     setDireccion(item.direccion || '');
     setContactoNombre(item.contacto_nombre || '');
     setTelefonoSecundario(item.telefono_secundario || '');
+    setZonasCobertura(item.zonas_cobertura || '');
     setError('');
     setEditando(false);
   }
@@ -81,6 +84,7 @@ function FilaProveedor({ item, stats, onGuardado }) {
         direccion: direccion.trim() || null,
         contacto_nombre: contactoNombre.trim() || null,
         telefono_secundario: telefonoSecundario.trim() || null,
+        zonas_cobertura: zonasCobertura.trim() || null,
       });
       setEditando(false);
       await onGuardado();
@@ -116,7 +120,7 @@ function FilaProveedor({ item, stats, onGuardado }) {
         {editando ? <input value={ciudad} onChange={(e) => setCiudad(e.target.value)} /> : item.ciudad || <span style={{ color: 'var(--text-muted)' }}>—</span>}
       </td>
       <td>
-        {editando ? <input value={barrio} onChange={(e) => setBarrio(e.target.value)} /> : item.barrio || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+        {editando ? <input list="barrios-list" value={barrio} onChange={(e) => setBarrio(e.target.value)} /> : item.barrio || <span style={{ color: 'var(--text-muted)' }}>—</span>}
       </td>
       <td>
         {editando ? <input value={direccion} onChange={(e) => setDireccion(e.target.value)} /> : item.direccion || <span style={{ color: 'var(--text-muted)' }}>—</span>}
@@ -127,6 +131,17 @@ function FilaProveedor({ item, stats, onGuardado }) {
       <td>{item.telefono || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
       <td>
         {editando ? <input value={telefonoSecundario} onChange={(e) => setTelefonoSecundario(e.target.value)} /> : item.telefono_secundario || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </td>
+      <td style={{ minWidth: 180 }}>
+        {editando ? (
+          <input
+            placeholder="Ej. Belén, Laureles"
+            value={zonasCobertura}
+            onChange={(e) => setZonasCobertura(e.target.value)}
+          />
+        ) : (
+          item.zonas_cobertura || <span style={{ color: 'var(--text-muted)' }}>—</span>
+        )}
       </td>
       <td className="mono">{stats?.n_productos ?? 0}</td>
       <td className="mono">{stats?.n_pedidos ?? 0}</td>
@@ -217,6 +232,12 @@ export default function MaestroProveedores() {
 
   return (
     <div>
+      <datalist id="barrios-list">
+        {BARRIOS_MEDELLIN.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
+
       {error && <p className="error">{error}</p>}
 
       <div style={{ marginBottom: 14 }}>
@@ -241,6 +262,7 @@ export default function MaestroProveedores() {
             style={{ marginTop: 10, marginBottom: 10, width: '100%', maxWidth: 320 }}
           />
           <input
+            list="barrios-list"
             placeholder="Barrio"
             value={barrioNuevo}
             onChange={(e) => setBarrioNuevo(e.target.value)}
@@ -279,6 +301,7 @@ export default function MaestroProveedores() {
                 <th>Contacto</th>
                 <th>Celular</th>
                 <th>Celular 2</th>
+                <th>Zonas de cobertura (manual)</th>
                 <th># productos</th>
                 <th># pedidos</th>
                 <th>Adopción</th>

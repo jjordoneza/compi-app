@@ -1,9 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import { ComerciosExt, SugerenciasCambioComercioExt } from '../../supabase';
 import { usuarioActual } from '../../auth';
 import { COLORS, RADIUS } from '../../theme';
+
+// Mismo criterio que RegistroNegocioScreen: nunca bloquea, si el permiso se
+// niega o falla la captura simplemente no se muestra el mapa de confirmación.
+async function capturarUbicacion() {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return null;
+    const posicion = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    return { lat: posicion.coords.latitude, lng: posicion.coords.longitude };
+  } catch (e) {
+    return null;
+  }
+}
 
 const CATEGORIAS_LABEL = {
   tienda_barrio: 'Tienda de barrio',
@@ -45,8 +60,17 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   const [telefono, setTelefono] = useState('');
   const [telefonoOriginal, setTelefonoOriginal] = useState('');
   const [pendiente, setPendiente] = useState(null);
+  const [tieneUbicacion, setTieneUbicacion] = useState(true); // true hasta cargar, para no parpadear el botón
+  const [capturandoUbicacion, setCapturandoUbicacion] = useState(false);
 
-  useEffect(() => { cargar(); }, []);
+  // "focus", no solo mount: al volver de ConfirmarUbicacionScreen (backfill
+  // de GPS) esta pantalla necesita refrescarse para que el botón desaparezca.
+  useFocusEffect(
+    useCallback(() => {
+      cargar();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [comercioId])
+  );
 
   async function cargar() {
     setCargando(true);
@@ -66,6 +90,7 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
         setCategoria(comercio.categoria || '');
         setTelefono(comercio.telefono || '');
         setTelefonoOriginal(comercio.telefono || '');
+        setTieneUbicacion(comercio.lat != null && comercio.lng != null);
       }
       setPendiente(pendientes?.[0] || null);
     } catch (e) {
@@ -76,6 +101,27 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
   }
 
   const telefonoCambio = telefono.trim() !== (telefonoOriginal || '');
+
+  async function agregarUbicacion() {
+    if (capturandoUbicacion) return;
+    setCapturandoUbicacion(true);
+    try {
+      const coords = await capturarUbicacion();
+      if (!coords) {
+        Alert.alert('No pudimos obtener tu ubicación', 'Revisa que el permiso de ubicación esté activo para Compi e inténtalo de nuevo.');
+        return;
+      }
+      navigation.navigate('ConfirmarUbicacion', {
+        comercioId,
+        comercioNombre: nombre,
+        lat: coords.lat,
+        lng: coords.lng,
+        volverAtras: true,
+      });
+    } finally {
+      setCapturandoUbicacion(false);
+    }
+  }
 
   function confirmarEliminar() {
     Alert.alert(
@@ -145,6 +191,21 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
         <CampoSoloLectura label="Nombre de quien atiende" valor={contactoNombre} />
         <CampoSoloLectura label="Tipo de negocio" valor={CATEGORIAS_LABEL[categoria] || categoria} />
 
+        {!tieneUbicacion && (
+          <View style={styles.avisoUbicacion}>
+            <Text style={styles.avisoUbicacionTexto}>
+              Todavía no tenemos la ubicación de tu negocio en el mapa — esto ayuda a que Compi te recomiende proveedores que ya reparten en tu zona.
+            </Text>
+            <TouchableOpacity
+              style={[styles.botonUbicacion, capturandoUbicacion && styles.botonDeshabilitado]}
+              disabled={capturandoUbicacion}
+              onPress={agregarUbicacion}
+            >
+              <Text style={styles.botonUbicacionTexto}>{capturandoUbicacion ? 'Obteniendo ubicación...' : 'Agregar ubicación'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <Text style={styles.label}>Teléfono de contacto</Text>
         <TextInput
           style={styles.input}
@@ -189,6 +250,10 @@ const styles = StyleSheet.create({
   campoSoloLectura: { marginBottom: 4 },
   valorSoloLectura: { height: 48, borderWidth: 1, borderColor: COLORS.borderLight, borderRadius: RADIUS.md, paddingHorizontal: 14, fontSize: 14, color: COLORS.textSecondary, backgroundColor: COLORS.bg, textAlignVertical: 'center', lineHeight: 48 },
   aviso: { fontSize: 12, color: COLORS.textSecondary, backgroundColor: COLORS.white, borderRadius: RADIUS.sm, padding: 10, marginTop: 8, lineHeight: 17 },
+  avisoUbicacion: { backgroundColor: COLORS.warningBg, borderRadius: RADIUS.md, padding: 14, marginTop: 12, marginBottom: 8 },
+  avisoUbicacionTexto: { fontSize: 12, color: COLORS.warning, lineHeight: 17 },
+  botonUbicacion: { marginTop: 10, height: 44, borderRadius: RADIUS.sm, backgroundColor: COLORS.warning, alignItems: 'center', justifyContent: 'center' },
+  botonUbicacionTexto: { color: COLORS.white, fontWeight: '600', fontSize: 13 },
   boton: { marginTop: 20, height: 50, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
   botonTexto: { color: COLORS.white, fontWeight: '600', fontSize: 15 },

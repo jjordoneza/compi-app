@@ -1,23 +1,76 @@
 import { useRef, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Abastecimientos, Pedidos, PedidoItems } from '../../supabase';
+import { Abastecimientos, Pedidos, PedidoItems, ProductosRelacionExt } from '../../supabase';
 import { COLORS, RADIUS, formatMoney } from '../../theme';
+
+function limpiarNumero(texto) {
+  const soloDigitos = texto.replace(/[^0-9]/g, '');
+  return soloDigitos ? parseInt(soloDigitos, 10) : null;
+}
 
 export default function ConfirmarPedidoScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
-  const { comercioId, comercioNombre, gruposParaEnviar, totalEstimado } = route.params;
+  const { comercioId, comercioNombre, gruposParaEnviar } = route.params;
   const [enviando, setEnviando] = useState(false);
+  // Copia local editable: permite completar precios sin salir de esta
+  // pantalla (empujón "faltan N precios") en vez de mandar al tendero a otra
+  // pantalla y perder este borrador de pedido.
+  const [grupos, setGrupos] = useState(gruposParaEnviar);
+  const [precioEditandoId, setPrecioEditandoId] = useState(null);
+  const [precioEditandoValor, setPrecioEditandoValor] = useState('');
+  const [guardandoPrecio, setGuardandoPrecio] = useState(false);
   // Sin transacción real de por medio: si un intento falla a mitad de camino,
   // guardamos qué abastecimiento y qué proveedores ya quedaron creados para que
   // reintentar "Enviar" continúe donde quedó, en vez de duplicar lo ya enviado.
   const abastecimientoIdRef = useRef(null);
   const enviadosRef = useRef(new Set());
 
+  const itemsFaltantes = [];
+  grupos.forEach((grupo) => {
+    grupo.items.forEach((item) => {
+      if (item.precio == null) itemsFaltantes.push(item);
+    });
+  });
+
+  function empezarEditarPrecio(item) {
+    setPrecioEditandoId(item.productoRelacionId);
+    setPrecioEditandoValor('');
+  }
+
+  async function guardarPrecioInline(item) {
+    if (guardandoPrecio) return;
+    const nuevoPrecio = limpiarNumero(precioEditandoValor);
+    if (nuevoPrecio == null) return;
+    setGuardandoPrecio(true);
+    try {
+      await ProductosRelacionExt.actualizar(item.productoRelacionId, { precio_pactado: nuevoPrecio });
+      setGrupos((prev) =>
+        prev.map((grupo) => ({
+          ...grupo,
+          items: grupo.items.map((it) =>
+            it.productoRelacionId === item.productoRelacionId ? { ...it, precio: nuevoPrecio } : it
+          ),
+        }))
+      );
+      setPrecioEditandoId(null);
+    } catch (e) {
+      Alert.alert('Error guardando precio', e.message);
+    } finally {
+      setGuardandoPrecio(false);
+    }
+  }
+
+  const todosLosItems = grupos.flatMap((g) => g.items);
+  const faltaAlgunPrecio = todosLosItems.some((it) => it.precio == null);
+  const totalEstimado = faltaAlgunPrecio
+    ? null
+    : todosLosItems.reduce((sum, it) => sum + it.precio * it.cantidad, 0);
+
   function confirmarEnvio() {
     Alert.alert(
       'Enviar abastecimiento',
-      `Vas a enviar este pedido a ${gruposParaEnviar.length} proveedor(es). ¿Confirmas?`,
+      `Vas a enviar este pedido a ${grupos.length} proveedor(es). ¿Confirmas?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Enviar', onPress: enviar },
@@ -34,7 +87,7 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
       }
       const abastecimientoId = abastecimientoIdRef.current;
 
-      for (const grupo of gruposParaEnviar) {
+      for (const grupo of grupos) {
         if (enviadosRef.current.has(grupo.relacionId)) continue; // ya se guardó en un intento anterior
 
         const pedido = await Pedidos.crear({
@@ -62,10 +115,10 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
         routes: [{ name: 'PedidoEnviado', params: { comercioId, comercioNombre, abastecimientoId } }],
       });
     } catch (e) {
-      const faltan = gruposParaEnviar.length - enviadosRef.current.size;
+      const faltan = grupos.length - enviadosRef.current.size;
       Alert.alert(
         'Error enviando',
-        faltan < gruposParaEnviar.length
+        faltan < grupos.length
           ? `${e.message}\n\nTranquilo: lo que ya se envió no se duplica. Toca "Enviar" de nuevo para continuar con los ${faltan} proveedor(es) que faltan.`
           : e.message
       );
@@ -79,7 +132,15 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
         <Text style={styles.titulo}>Confirmar</Text>
         <Text style={styles.subtitulo}>Enviaremos esta solicitud a tus proveedores.</Text>
 
-        {gruposParaEnviar.map((grupo) => {
+        {itemsFaltantes.length > 0 && (
+          <TouchableOpacity style={styles.avisoPrecios} onPress={() => empezarEditarPrecio(itemsFaltantes[0])}>
+            <Text style={styles.avisoPreciosTexto}>
+              Faltan {itemsFaltantes.length} precio{itemsFaltantes.length === 1 ? '' : 's'} · ponlos ahora
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {grupos.map((grupo) => {
           const itemsConPrecio = grupo.items.filter((it) => it.precio != null);
           const faltaPrecio = itemsConPrecio.length < grupo.items.length;
           const subtotal = itemsConPrecio.reduce((sum, it) => sum + it.precio * it.cantidad, 0);
@@ -92,17 +153,48 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
                   {faltaPrecio ? 'Precio incompleto' : `$${formatMoney(subtotal)}`}
                 </Text>
               </View>
-              {grupo.items.map((item, i) => (
-                <View key={i} style={styles.filaItem}>
-                  <Text style={styles.itemNombre}>{item.nombre} · {item.presentacion}</Text>
-                  <View style={styles.itemDerecha}>
-                    <Text style={styles.itemCantidad}>x{item.cantidad}</Text>
-                    <Text style={styles.itemPrecio}>
-                      {item.precio != null ? `$${formatMoney(item.precio)}` : 'sin precio'}
-                    </Text>
+              {grupo.items.map((item, i) => {
+                const editandoEste = precioEditandoId === item.productoRelacionId;
+                return (
+                  <View key={i} style={styles.filaItem}>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.filaItemTop}>
+                        <Text style={styles.itemNombre}>{item.nombre} · {item.presentacion}</Text>
+                        <View style={styles.itemDerecha}>
+                          <Text style={styles.itemCantidad}>x{item.cantidad}</Text>
+                          {item.precio != null ? (
+                            <Text style={styles.itemPrecio}>${formatMoney(item.precio)}</Text>
+                          ) : (
+                            !editandoEste && (
+                              <TouchableOpacity onPress={() => empezarEditarPrecio(item)}>
+                                <Text style={styles.tocaTexto}>tócalo para ponerlo</Text>
+                              </TouchableOpacity>
+                            )
+                          )}
+                        </View>
+                      </View>
+                      {editandoEste && (
+                        <View style={styles.filaEdicion}>
+                          <TextInput
+                            style={styles.inputPrecio}
+                            keyboardType="numeric"
+                            placeholder="Ej. 13500"
+                            value={precioEditandoValor}
+                            onChangeText={setPrecioEditandoValor}
+                            autoFocus
+                          />
+                          <TouchableOpacity style={styles.botonMini} disabled={guardandoPrecio} onPress={() => guardarPrecioInline(item)}>
+                            <Text style={styles.botonMiniTexto}>{guardandoPrecio ? 'Guardando...' : 'Guardar'}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.botonMiniCancelar} onPress={() => setPrecioEditandoId(null)}>
+                            <Text style={styles.botonMiniCancelarTexto}>Cancelar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           );
         })}
@@ -131,11 +223,21 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   proveedorNombre: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   subtotalTexto: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-  filaItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
+  filaItem: { paddingVertical: 3 },
+  filaItemTop: { flexDirection: 'row', justifyContent: 'space-between' },
   itemNombre: { fontSize: 13, color: COLORS.text, flex: 1 },
   itemDerecha: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   itemCantidad: { fontSize: 13, fontWeight: '600', color: COLORS.text },
   itemPrecio: { fontSize: 12, color: COLORS.textSecondary, minWidth: 60, textAlign: 'right' },
+  tocaTexto: { fontSize: 11, color: COLORS.warning, fontWeight: '600' },
+  avisoPrecios: { backgroundColor: COLORS.warningBg, borderRadius: RADIUS.sm, padding: 12, marginBottom: 12 },
+  avisoPreciosTexto: { color: COLORS.warning, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  filaEdicion: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  inputPrecio: { flex: 1, height: 38, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.sm, paddingHorizontal: 10, fontSize: 13, color: COLORS.text, backgroundColor: COLORS.white },
+  botonMini: { backgroundColor: COLORS.primary, paddingVertical: 8, paddingHorizontal: 10, borderRadius: RADIUS.sm },
+  botonMiniTexto: { color: COLORS.white, fontSize: 12, fontWeight: '600' },
+  botonMiniCancelar: { paddingVertical: 8, paddingHorizontal: 6 },
+  botonMiniCancelarTexto: { color: COLORS.textSecondary, fontSize: 12 },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.white, borderTopWidth: 0.5, borderTopColor: COLORS.borderLight, padding: 16 },
   footerFila: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   footerTexto: { fontSize: 13, color: COLORS.textSecondary },

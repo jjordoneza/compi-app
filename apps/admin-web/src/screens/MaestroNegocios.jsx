@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listarComercios, actualizarComercio } from '../api';
+import { BARRIOS_MEDELLIN } from '../constants';
 
 // Único lugar donde se edita comercios directo, sin cola de aprobación — el
 // admin es el único que ve esta pantalla. No hay crear/eliminar a mano: los
@@ -83,7 +84,11 @@ function FilaComercio({ item, onGuardado }) {
       {CAMPOS.map((c) => (
         <td key={c.key}>
           {editando ? (
-            <input value={valores[c.key]} onChange={(e) => setCampo(c.key, e.target.value)} />
+            <input
+              list={c.key === 'barrio' ? 'barrios-list' : undefined}
+              value={valores[c.key]}
+              onChange={(e) => setCampo(c.key, e.target.value)}
+            />
           ) : (
             item[c.key] || <span style={{ color: 'var(--text-muted)' }}>—</span>
           )}
@@ -169,6 +174,12 @@ export default function MaestroNegocios() {
 
   return (
     <div>
+      <datalist id="barrios-list">
+        {BARRIOS_MEDELLIN.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
+
       <input
         className="buscadorGrid"
         placeholder="Buscar por nombre, ciudad, barrio, teléfono..."

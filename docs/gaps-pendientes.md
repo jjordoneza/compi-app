@@ -19,38 +19,43 @@ Este documento registra huecos de lógica, arquitectura y pantallas encontrados 
 
 ## Prioridad 2 — Riesgos estructurales, no bloquean uso inmediato
 
-### 1. Fricción: productos de "Pegar pedido" nacen sin precio (reclasificado de P1 → P2, 15 jul 2026)
+### 1. Fricción: productos de "Pegar pedido" nacen sin precio — ✅ resuelto (19 jul 2026)
 **Corrección de la premisa original** ("no existe pantalla para fijar el precio"): el tendero **sí puede** fijar `precio_pactado` directamente, sin cola de curaduría admin, en 3 lugares — el precio es dato privado de la relación tienda-proveedor y se escribe directo vía `ProductosRelacionExt.actualizar`:
 - **Detalle de proveedor** (`RelacionDetalleScreen`): "Poner precio" / "editar" por producto, y agregar un producto con precio.
 - **Nuevo abastecimiento** (`NuevoAbastecimientoScreen`): "Sin precio configurado · tócalo para ponerlo", guarda el precio inline mientras se arma el pedido.
 - **Confirmar pedido** (`ConfirmarPedidoScreen`): no bloquea confirmar; muestra "sin precio" por ítem, "Precio incompleto" por proveedor y total "Incompleto".
 
-Por eso **no bloquea el flujo básico** (baja de P1 a P2). El residual es de **fricción**: los productos creados desde "Pegar pedido" / "Catálogo detectado" (`PegarPedidoScreen`) y el loop de onboarding nacen con `precio_pactado = null` y ese flujo **no invita a ponerles precio ahí mismo** — quedan sin precio hasta que el tendero los tope por otra pantalla.
+El residual era de **fricción**: los productos creados desde "Pegar pedido" / "Catálogo detectado" (`PegarPedidoScreen`) nacían con `precio_pactado = null` y ese flujo no invitaba a ponerles precio ahí mismo.
 
 **Decidido:** el precio se fija directo por el tendero, sin curaduría (ratifica el diseño ya implementado). La curaduría admin queda reservada solo para la **existencia** del producto/proveedor en el catálogo maestro compartido.
 
-**Pendiente (implementación):** campo de precio opcional por producto en "Catálogo detectado" (Pegar Pedido) + opcionalmente un empujón tocable "faltan N precios · ponlos ahora" en Confirmar pedido. Sin pantalla nueva ni cambios en el modelo de datos.
+**Implementado (19 jul 2026), sin migración ni pantalla nueva:**
+- `PegarPedidoScreen`: campo de precio opcional (`$`, teclado numérico) por producto detectado. Se manda como `precio_pactado` tanto si el ítem se vincula directo (`ProductosRelacionExt.crear`) como si va a curaduría (`ProductosSugeridos.crear` — la columna `precio_pactado` ya existía ahí desde la migración `0003` y `aprobar_producto_sugerido` ya la copiaba a `productos_relacion` al aprobar, así que no había nada que tocar en el backend).
+- `ConfirmarPedidoScreen`: banner "Faltan N precios · ponlos ahora" cuando hay ítems sin precio, tocable. Cada ítem sin precio también es tocable directo ("tócalo para ponerlo"), con el mismo patrón de edición inline que `NuevoAbastecimientoScreen` (`ProductosRelacionExt.actualizar` + estado local `grupos`, en vez de navegar a otra pantalla y perder el borrador del pedido). El total estimado y "Precio incompleto" por proveedor se recalculan en vivo tras cada precio guardado.
 
 ### 5. Sin decisión de infraestructura de notificaciones push
 La pantalla de Notificaciones y el diseño de "notificaciones agrupadas por comercio" del Motor de Reabastecimiento Predictivo asumen push funcionando, pero no hay decisión de qué servicio usar (candidato natural: Expo Push Notifications, ya que el proyecto es Expo) ni manejo de permisos/tokens.
 
 > **Gap #6 resuelto (16 jul 2026).** Ver sección Resuelto — el flujo completo ya existe.
 
-### 9. Motor de cobertura de proveedores — piezas sin conectar (16 jul 2026, revisado 17 jul 2026)
-El motor en sí (migraciones `0009`/`0010`: `v_cobertura_proveedor`, `v_patron_dia_proveedor`, RPC `cobertura_confianza`) ya está en producción y conectado en `AgregarProveedorScreen`. Quedan sueltas:
-- **Campo manual `zonas_cobertura`** (declarado a mano por un admin, señal secundaria) — ya no depende de nada: la Fase 4 (`apps/admin-web/`, ver Resuelto) existe, así que su lugar natural de captura ya está disponible. Sigue pendiente construir el campo en sí (ej. en Maestro de proveedores).
-- **`cobertura_senales_negativas`** — la tabla y las políticas RLS existen (guarda el motivo "no cubre mi zona" al eliminar un proveedor sin historial), pero **sigue sin estar conectada a ninguna pantalla** — falta el chip en el diálogo de "Eliminar proveedor" (RN) y no hay UI de tendero que la escriba (confirmado de nuevo en la auditoría del 17 jul, `checklistauditoria.md` sección D/H).
-- **Backfill de `lat`/`lng`** para comercios registrados antes de este cambio — hoy solo comercios nuevos capturan GPS automáticamente al registrarse.
-- **Sugerencia proactiva en onboarding**: la RPC ya devuelve proveedores con cobertura confirmada, pero no está conectada a ninguna pantalla del flujo de registro/onboarding todavía.
-- **Normalización de `comercios.barrio`** (texto libre, sin lista controlada) — sigue siendo frágil para cualquier matching por nombre de barrio, incluido el patrón de día de entrega. Afecta también al gap ya resuelto de recomendación por barrio.
+### 9. Motor de cobertura de proveedores — piezas sin conectar — ✅ resuelto (19 jul 2026)
+El motor en sí (migraciones `0009`/`0010`: `v_cobertura_proveedor`, `v_patron_dia_proveedor`, RPC `cobertura_confianza`) ya estaba en producción y conectado en `AgregarProveedorScreen`. Quedaban 5 piezas sueltas, las 5 cerradas en esta ronda:
+
+- **Campo manual `zonas_cobertura`** — migración `0036` agrega la columna a `proveedores_maestro`. Editable en Maestro de proveedores (`apps/admin-web`), texto libre separado por coma (mismo formato que `categoria`). **Todavía no se lee en ninguna RPC/pantalla del tendero** — queda capturado para cuando se decida usarlo como señal adicional en `cobertura_confianza`; esto es intencional, no un olvido.
+- **`cobertura_senales_negativas`** — ahora conectada: `ProveedoresTabScreen` → "Quitar proveedor" tiene 3 botones (Cancelar / **No cubre mi zona** / Quitar). "No cubre mi zona" además desactiva la relación (mismo soft-delete de siempre) e inserta la señal vía `CoberturaSenalesNegativas.crear` (best-effort, un fallo de este insert no bloquea el quitar).
+- **Backfill de `lat`/`lng`**: `MiNegocioTenderoScreen` ahora detecta comercios sin coordenadas y muestra un banner + botón "Agregar ubicación" que reusa `capturarUbicacion()` (expo-location) y navega a `ConfirmarUbicacionScreen` — mismo mapa de confirmación con pin arrastrable del registro. `ConfirmarUbicacionScreen` ahora acepta un param `volverAtras` (antes siempre navegaba a `ImportarContactos`, que no aplica fuera de onboarding) para volver a Mi negocio en vez de seguir el paso de onboarding.
+- **Sugerencia proactiva en onboarding**: `OnboardingProveedoresScreen`, en el estado final "¡Listo por ahora!" (cuando ya no quedan proveedores vinculados por catalogar), ahora llama `CoberturaProveedor.confianza` y muestra hasta 3 proveedores **no vinculados todavía** con confianza ≥ 0.3 en la zona del comercio, con botón "Ver y agregar" a `AgregarProveedorScreen`. Se puso al final a propósito, para no competir con el héroe de la pantalla (catalogar lo ya vinculado).
+- **Normalización de `comercios.barrio`**: se optó por autocompletar, no por una lista cerrada/enum — `constants.js` (RN) y `apps/admin-web/src/constants.js` exportan `BARRIOS_MEDELLIN`, una lista de ~90 barrios conocidos de Medellín (**no exhaustiva ni oficial** — la ciudad tiene ~250 en 16 comunas; una lista incompleta como enum habría bloqueado barrios reales no listados). En RN (`RegistroNegocioScreen`, `CrearProveedorScreen`) se implementó como chips de sugerencia debajo del campo que aparecen al escribir 2+ letras; en admin-web (`MaestroNegocios.jsx`, `MaestroProveedores.jsx`) como `<datalist>` HTML nativo. En ambos casos el campo **sigue siendo texto libre** — la lista solo sugiere, nunca valida ni bloquea.
 
 ## Prioridad 3 — Menores, revisar cuando haya tiempo
 
-### 7. Estados de error incompletos
-Solo están documentados/construidos: permisos de contactos denegados, sin conexión. Faltan: proveedor que nunca confirma tras reintentos (el documento dice "se devuelve la decisión al tendero" pero no hay pantalla), teléfono ya registrado por otro comercio al crear cuenta nueva.
+### 7. Estados de error incompletos (revisado 19 jul 2026)
+Solo están documentados/construidos: permisos de contactos denegados, sin conexión.
+- **Proveedor que nunca confirma tras reintentos**: **diferido, decisión explícita del usuario.** Hoy no existe ningún reintento automático — el agente de WhatsApp para proveedores sigue bloqueado por el trámite de Meta, y todo el avance de estado de pedido es manual vía `PedidosOperacion.jsx` (admin-web). Construir una pantalla para un disparador que no existe todavía sería prematuro; se retoma si/cuando el bot de WhatsApp exista.
+- **Teléfono ya registrado por otro comercio al crear cuenta nueva** — ✅ resuelto (19 jul 2026). Migración `0037` agrega `comercio_por_telefono(p_telefono)` (RPC security definer) que busca comercios **activos** con ese teléfono, excluyendo explícitamente los del propio usuario (`not es_miembro(c.id)`) — así el caso normal de multi-comercio (mismo dueño, mismo teléfono OTP, 2º/3er negocio) nunca dispara el aviso, solo el caso real de un teléfono ya reclamado por OTRO dueño. `RegistroNegocioScreen` la llama antes de crear el comercio; si hay coincidencia, muestra "¿Es tu negocio? ... pide que te agreguen como miembro" con opción "Continuar de todas formas" — nunca bloquea. Verificado con un Postgres local stub (multi-comercio propio → vacío; otro dueño → 1 fila; sin coincidencia → vacío; comercio inactivo → vacío).
 
-### 8. IDC no visible para el tendero
-Hoy es una métrica puramente interna/de negocio. Vale la pena decidir explícitamente si se muestra al tendero (ej. "llevas 6 de 10 proveedores en Compi") como incentivo de adopción, o se mantiene interna a propósito.
+### 8. IDC no visible para el tendero — ✅ resuelto (19 jul 2026)
+**Decisión explícita del usuario: sí mostrarlo**, como incentivo de adopción. Implementado en `PerfilScreen`: "N proveedor(es) activo(s) en Compi", usando `RelacionesExt.listarActivasPorComercio(comercioId).length` — **número absoluto, no fracción** contra `proveedores_totales` (sigue la corrección ya documentada en `docs/indicadores-dashboard.md`: `proveedores_totales` es una estimación de memoria de una sola vez, dividir podía dar >100% y dejaba de tener sentido). Sin RPC ni migración nueva — el dato ya se podía leer del lado del cliente.
 
 ## Resuelto
 
@@ -152,6 +157,44 @@ Contexto de arranque para la próxima sesión, sin necesidad de que el usuario l
 - **Todas las tareas de la auditoría manual del usuario (2 rondas, ~19 ítems entre las dos) están cerradas** — ver las dos entradas de arriba ("Auditoría manual 'Sección A'..." del 18 jul y "Segunda ronda de auditoría manual..." del 19 jul) para el detalle completo de cada fix.
 - **Pendiente explícito, sin resolver**: el rediseño visual de `apps/admin-web` sigue sin dirección definida — el usuario rechazó "Nothing Design" pero no dio una alternativa. Si en la próxima sesión se retoma el tema de la identidad visual del panel admin, hay que preguntar de cero qué dirección quiere (no asumir, no reofrecer la misma).
 - **Reglas de trabajo que siguen vigentes** (ya las conoce quien siga esta sesión, pero quedan aquí por si se pierden en compactación): usar `TaskCreate`/`TaskUpdate` al arrancar bloques de trabajo; revisar `ls supabase/migrations/ | tail` antes de numerar una migración nueva; toda migración de esquema lleva `.sql` + `.rollback.sql` con comentario del porqué; no hay CLI de Supabase — decir siempre explícitamente qué aplicar a mano; buscar patrones ya resueltos en el repo antes de inventar uno nuevo; no scope-creep (anotar en este archivo, no arreglar sin que se pida); verificar siempre antes de dar algo por listo (`node --check` en `.js` de `screens/`, `npm run build` en `apps/admin-web`, sanity check de SQL — este archivo ya tiene el patrón de cómo se hizo un sanity check real con un Postgres local stub, ver la migración `0035`); al cerrar un bloque: commit con mensaje explicando el porqué, entrada fechada en este archivo, y abrir PR sin esperar a que se pida (revisando primero si el PR anterior ya se mergeó).
+
+## Nueva sesión — precio en Pegar Pedido (P2 #1) cerrado — 19 jul 2026
+
+Continuación de la sesión anterior, misma fecha. El usuario pidió listar pendientes; se le presentó la lista de arriba (P2 #1, #5, #9; P3 #7, #8; nota de seguridad de estado de pedido; rediseño admin-web; términos de uso; `catalogo-matching-unidades.md`) y eligió arrancar por **P2 #1** (precio en Pegar Pedido) por ser chico, sin cambios de modelo, y directamente alineado con el héroe del MVP (resurtir rápido).
+
+**Rama de trabajo**: `claude/compi-project-revision-rvqkbq`, creada fresca desde `origin/main` (`d8838cd`, que ya incluye los PRs #46/#47 de la sesión anterior) — sin necesidad de rebase.
+
+Detalle del fix en la entrada de P2 #1 (arriba, sección Prioridad 2). Verificado: `node --check` en todos los `.js` de `screens/` (no solo los 2 tocados). `npm run build` de `apps/admin-web` **no se corrió** — no se tocó ningún archivo de `apps/admin-web` en este bloque y el `node_modules` de esa app no está instalado en este entorno (no es una regresión introducida aquí). Sin migraciones — el campo `precio_pactado` en `productos_sugeridos` y su copiado en `aprobar_producto_sugerido` ya existían desde antes (`0003`/`0011`).
+
+**Quedan pendientes** los mismos ítems ya listados arriba (P2 #5 push, P2 #9 cabos sueltos de cobertura, P3 #7/#8, nota de seguridad de estado de pedido sin RPC, rediseño admin-web sin dirección, términos de uso/privacidad, `catalogo-matching-unidades.md` retomable) — ninguno se tocó en este bloque.
+
+## Cabos sueltos de cobertura (P2 #9) + estados de error (P3 #7) + IDC visible (P3 #8) — 19 jul 2026
+
+Misma sesión que el bloque anterior (precio en Pegar Pedido). El usuario pidió seguir con estos 3 gaps juntos. Antes de tocar código se preguntaron 4 decisiones de producto genuinamente abiertas (no asumidas):
+
+1. **Normalización de `comercios.barrio`/`proveedores_maestro.barrio`** → lista fija de Medellín + área metro, como autocomplete (no enum/validación).
+2. **"Proveedor nunca confirma tras reintentos"** → diferido (no hay bot de WhatsApp ni reintentos automáticos hoy, construir la pantalla sería prematuro).
+3. **"Teléfono ya registrado por otro comercio"** → aviso simple al detectar coincidencia (no bloquear).
+4. **IDC visible al tendero** → sí, mostrarlo como incentivo de adopción.
+
+Migraciones nuevas: `0036` (`zonas_cobertura` en `proveedores_maestro`) y `0037` (RPC `comercio_por_telefono`) — **ninguna se ha aplicado todavía, correr a mano en el SQL Editor de Supabase, en orden**. Ambas verificadas localmente contra un Postgres 16 stub (forward + rollback); `0037` además se probó con 4 escenarios (multi-comercio propio, otro dueño, sin coincidencia, comercio inactivo) — ver detalle en la entrada de P3 #7 arriba.
+
+Detalle completo de cada pieza en las entradas de P2 #9, P3 #7 y P3 #8 (arriba, ya actualizadas in-place en vez de duplicarse aquí). Resumen de archivos tocados:
+- `constants.js` / `apps/admin-web/src/constants.js`: `BARRIOS_MEDELLIN`.
+- `supabase.js`: `CoberturaSenalesNegativas`, `ComercioPorTelefono`.
+- `apps/admin-web/src/screens/MaestroProveedores.jsx`: campo `zonas_cobertura` + datalist de barrio.
+- `apps/admin-web/src/screens/MaestroNegocios.jsx`: datalist de barrio.
+- `screens/RegistroNegocioScreen.js`: chips de sugerencia de barrio + aviso de teléfono duplicado.
+- `screens/tendero/CrearProveedorScreen.js`: chips de sugerencia de barrio.
+- `screens/tendero/ProveedoresTabScreen.js`: botón "No cubre mi zona" en Quitar proveedor.
+- `screens/tendero/MiNegocioTenderoScreen.js`: banner de backfill de ubicación.
+- `screens/ConfirmarUbicacionScreen.js`: param `volverAtras` para reusarla fuera de onboarding.
+- `screens/OnboardingProveedoresScreen.js`: sugerencia proactiva de cobertura en el estado final.
+- `screens/tendero/PerfilScreen.js`: IDC visible.
+
+Verificado: `node --check` en todos los `.js` de `screens/` + `supabase.js` + `constants.js`; `npm run build` de `apps/admin-web` (con `npm install` fresco, no había `node_modules`) — ambos limpios.
+
+**Sigue sin tocar** (fuera de alcance de este bloque, no se pidió): "proveedor nunca confirma" (diferido explícitamente), rediseño visual de `apps/admin-web`, términos de uso/privacidad, `docs/catalogo-matching-unidades.md`, y la lectura efectiva de `zonas_cobertura` dentro de `cobertura_confianza` (queda capturado en el Maestro pero la RPC todavía no la usa como señal).
 
 ## Pendientes ya registrados de conversaciones anteriores (no son de esta revisión, se listan para no perderlos)
 
