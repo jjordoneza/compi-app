@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Abastecimientos, Pedidos, PedidoItems, ProductosRelacionExt } from '../../supabase';
 import { COLORS, RADIUS, formatMoney } from '../../theme';
@@ -127,7 +127,11 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: COLORS.bg }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={80}
+    >
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140 + insets.bottom, paddingTop: 20 }}>
         <Text style={styles.titulo}>Confirmar</Text>
         <Text style={styles.subtitulo}>Enviaremos esta solicitud a tus proveedores.</Text>
@@ -211,7 +215,7 @@ export default function ConfirmarPedidoScreen({ route, navigation }) {
           <Text style={styles.botonEnviarTexto}>{enviando ? 'Enviando...' : 'Enviar abastecimiento'}</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
