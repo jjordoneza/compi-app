@@ -77,6 +77,25 @@ async function capturarUbicacion() {
   }
 }
 
+// Prioriza la dirección que el tendero ya escribió sobre el GPS del
+// dispositivo (decisión de producto, 19 jul 2026): si llena el formulario en
+// un lugar distinto al negocio (ej. termina el registro en su casa), el GPS
+// del teléfono no tiene nada que ver con dónde queda el negocio y confunde en
+// el mapa de confirmación. Cae a capturarUbicacion() solo si la dirección no
+// se pudo ubicar.
+async function geocodificarDireccion(direccion, barrio, ciudad) {
+  try {
+    const consulta = [direccion, barrio, ciudad, 'Colombia'].filter(Boolean).join(', ');
+    const resultados = await Location.geocodeAsync(consulta);
+    if (resultados && resultados.length > 0) {
+      return { lat: resultados[0].latitude, lng: resultados[0].longitude };
+    }
+    return null;
+  } catch (e) {
+    return null; // silencioso — cae al GPS del dispositivo
+  }
+}
+
 export default function RegistroNegocioScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const [alturaFooter, setAlturaFooter] = useState(90);
@@ -174,7 +193,7 @@ export default function RegistroNegocioScreen({ route, navigation }) {
         });
       }
       setComercioCreado({ id: comercio.id, nombre: nombre.trim() });
-      const coords = await capturarUbicacion();
+      const coords = (await geocodificarDireccion(direccion, barrio, ciudad)) || (await capturarUbicacion());
       // navigate (no replace): así "atrás" regresa aquí en vez de saltar a Login.
       if (coords) {
         navigation.navigate('ConfirmarUbicacion', {

@@ -20,6 +20,23 @@ async function capturarUbicacion() {
   }
 }
 
+// Prioriza la dirección ya guardada del negocio sobre el GPS del teléfono
+// (decisión de producto, 19 jul 2026): "Agregar ubicación" se usa muchas
+// veces después de que el tendero ya no está físicamente en el negocio — el
+// GPS de dónde está parado ahora no sirve para ubicar el negocio en el mapa.
+async function geocodificarDireccion(direccion, barrio, ciudad) {
+  try {
+    const consulta = [direccion, barrio, ciudad, 'Colombia'].filter(Boolean).join(', ');
+    const resultados = await Location.geocodeAsync(consulta);
+    if (resultados && resultados.length > 0) {
+      return { lat: resultados[0].latitude, lng: resultados[0].longitude };
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 const CATEGORIAS_LABEL = {
   tienda_barrio: 'Tienda de barrio',
   panaderia: 'Panadería',
@@ -106,9 +123,9 @@ export default function MiNegocioTenderoScreen({ route, navigation }) {
     if (capturandoUbicacion) return;
     setCapturandoUbicacion(true);
     try {
-      const coords = await capturarUbicacion();
+      const coords = (await geocodificarDireccion(direccion, barrio, ciudad)) || (await capturarUbicacion());
       if (!coords) {
-        Alert.alert('No pudimos obtener tu ubicación', 'Revisa que el permiso de ubicación esté activo para Compi e inténtalo de nuevo.');
+        Alert.alert('No pudimos obtener tu ubicación', 'No encontramos tu dirección en el mapa y tampoco pudimos usar el GPS — revisa que el permiso de ubicación esté activo para Compi e inténtalo de nuevo.');
         return;
       }
       navigation.navigate('ConfirmarUbicacion', {
