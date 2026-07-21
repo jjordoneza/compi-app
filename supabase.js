@@ -88,6 +88,12 @@ export const MisComercios = {
     fetch(`${SUPABASE_URL}/rest/v1/comercio_miembros?select=comercios(*)`, { headers: HEADERS })
       .then(manejar)
       .then((rows) => (rows || []).map((r) => r.comercios).filter((c) => c && c.activo)),
+  // Negocios que el usuario eliminó (soft-delete) — para la sección "Negocios
+  // eliminados" de SeleccionarNegocioScreen y el enrutamiento de SplashScreen.
+  listarInactivos: () =>
+    fetch(`${SUPABASE_URL}/rest/v1/comercio_miembros?select=comercios(*)`, { headers: HEADERS })
+      .then(manejar)
+      .then((rows) => (rows || []).map((r) => r.comercios).filter((c) => c && !c.activo)),
 };
 
 // RPCs de Fase 1 (crean/ligan comercios al usuario autenticado).
