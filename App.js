@@ -13,6 +13,7 @@ import ConfirmarUbicacionScreen from './screens/ConfirmarUbicacionScreen';
 import ImportarContactosScreen from './screens/ImportarContactosScreen';
 import OnboardingProveedoresScreen from './screens/OnboardingProveedoresScreen';
 import SeleccionarNegocioScreen from './screens/SeleccionarNegocioScreen';
+import HistorialNegocioEliminadoScreen from './screens/HistorialNegocioEliminadoScreen';
 import TabNavigator from './screens/tendero/TabNavigator';
 import RelacionDetalleScreen from './screens/RelacionDetalleScreen';
 import NuevoAbastecimientoScreen from './screens/NuevoAbastecimientoScreen';
@@ -90,6 +91,11 @@ export default function App() {
           <Stack.Screen name="ImportarContactos" component={ImportarContactosScreen} options={{ headerShown: false }} />
           <Stack.Screen name="OnboardingProveedores" component={OnboardingProveedoresScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SeleccionarNegocio" component={SeleccionarNegocioScreen} options={{ headerShown: false }} />
+          <Stack.Screen
+            name="HistorialNegocioEliminado"
+            component={HistorialNegocioEliminadoScreen}
+            options={({ navigation }) => ({ title: 'Historial', headerLeft: () => <BotonVolver navigation={navigation} /> })}
+          />
           <Stack.Screen name="Home" component={TabNavigator} options={{ headerShown: false }} />
           <Stack.Screen
             name="NuevoAbastecimiento"

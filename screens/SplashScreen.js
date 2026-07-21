@@ -34,7 +34,16 @@ export default function SplashScreen({ navigation }) {
       const comercios = await MisComercios.listar();
       if (yaVencido()) return;
       if (comercios.length === 0) {
-        navigation.replace('RegistroNegocio', { telefono: usuarioActual()?.phone || '' });
+        // Antes de mandar a crear uno nuevo, reviso si tiene negocios
+        // eliminados — si los tiene, SeleccionarNegocio se los muestra ahí
+        // (sección "Negocios eliminados") en vez de perderlos de vista.
+        const inactivos = await MisComercios.listarInactivos();
+        if (yaVencido()) return;
+        if (inactivos.length === 0) {
+          navigation.replace('RegistroNegocio', { telefono: usuarioActual()?.phone || '' });
+        } else {
+          navigation.replace('SeleccionarNegocio');
+        }
       } else if (comercios.length === 1) {
         navigation.replace('Home', { comercioId: comercios[0].id, comercioNombre: comercios[0].nombre });
       } else {
