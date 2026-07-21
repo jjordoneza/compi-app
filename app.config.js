@@ -49,6 +49,13 @@ module.exports = {
           locationWhenInUsePermission: 'Compi usa tu ubicación al crear tu negocio para ayudarte a encontrar proveedores que sí cubren tu zona. No se te muestra ni se comparte con nadie.',
         },
       ],
+      [
+        'expo-notifications',
+        {
+          icon: './assets/icon.png',
+          color: '#0E7C86',
+        },
+      ],
     ],
     runtimeVersion: {
       policy: 'fingerprint',

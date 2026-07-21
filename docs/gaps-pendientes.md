@@ -33,8 +33,25 @@ El residual era de **fricción**: los productos creados desde "Pegar pedido" / "
 - `PegarPedidoScreen`: campo de precio opcional (`$`, teclado numérico) por producto detectado. Se manda como `precio_pactado` tanto si el ítem se vincula directo (`ProductosRelacionExt.crear`) como si va a curaduría (`ProductosSugeridos.crear` — la columna `precio_pactado` ya existía ahí desde la migración `0003` y `aprobar_producto_sugerido` ya la copiaba a `productos_relacion` al aprobar, así que no había nada que tocar en el backend).
 - `ConfirmarPedidoScreen`: banner "Faltan N precios · ponlos ahora" cuando hay ítems sin precio, tocable. Cada ítem sin precio también es tocable directo ("tócalo para ponerlo"), con el mismo patrón de edición inline que `NuevoAbastecimientoScreen` (`ProductosRelacionExt.actualizar` + estado local `grupos`, en vez de navegar a otra pantalla y perder el borrador del pedido). El total estimado y "Precio incompleto" por proveedor se recalculan en vivo tras cada precio guardado.
 
-### 5. Sin decisión de infraestructura de notificaciones push
-La pantalla de Notificaciones y el diseño de "notificaciones agrupadas por comercio" del Motor de Reabastecimiento Predictivo asumen push funcionando, pero no hay decisión de qué servicio usar (candidato natural: Expo Push Notifications, ya que el proyecto es Expo) ni manejo de permisos/tokens.
+### 5. Infraestructura de notificaciones push — ✅ resuelto (21 jul 2026), alcance parcial a propósito
+Decisión confirmada con el usuario: **Expo Push Notifications** (candidato natural, el proyecto ya es Expo) — infraestructura completa + 1 disparador reactivo. Quedan 2 disparadores para una vuelta futura, ver abajo.
+
+**Implementado:**
+- Dependencias nuevas: `expo-notifications` (~0.32.17) y `expo-constants` (~18.0.13, compatibles con Expo SDK 54) + plugin en `app.config.js`. **Son módulos nativos nuevos — cambian el fingerprint, hace falta un build nuevo de EAS (no basta con OTA) la primera vez que se instale esta versión.**
+- Migración `0039`: tabla `push_tokens` (token de Expo por comercio, upsert por `on_conflict=comercio_id,token`) y tabla `notificaciones` (historial — pantalla 24 del diseño, "Notificaciones"). RLS: el tendero solo ve/escribe lo de su propio comercio; **nadie inserta en `notificaciones` directo** (`for insert` sin policy) — solo lo hacen funciones `SECURITY DEFINER`.
+- `avanzar_estado_pedido` (migración 0038) ahora, además de lo que ya hacía, inserta una notificación cuando el pedido pasa a `confirmado` o `entregado` — envuelta en su propio `begin/exception` para que un fallo ahí nunca tumbe el avance de estado en sí.
+- Nueva Edge Function `supabase/functions/enviar-push`: la dispara un **Database Webhook** (Supabase → Database → Webhooks, **se configura a mano en el dashboard, no hay forma de crearlo por migración SQL**) sobre `INSERT` en `notificaciones`. Busca los `push_tokens` del comercio con la service role key (inyectada automática, sin secreto nuevo que configurar) y llama la API de Expo Push (`https://exp.host/--/api/v2/push/send`, no necesita key propia).
+- RN: `notificaciones.js` (pide permiso + registra el token, nunca bloquea — mismo criterio que `capturarUbicacion()`), llamado una vez al entrar a Home (`TabNavigator.js`). Nueva pantalla `NotificacionesScreen` (historial, toca para marcar leída) enlazada desde Perfil con badge de no leídas.
+- Verificado con Postgres local (rol de bajo privilegio, no superuser, para que RLS se probara de verdad — el primer intento con `sudo -u postgres` daba falsos positivos porque el superusuario bypasea RLS siempre): no-miembro ve 0 filas, miembro real ve las suyas, insert directo del cliente a `notificaciones` rechazado, notificaciones se generan correctamente en cada transición de estado.
+
+**Pendiente de configurar a mano (no es código, son pasos de dashboard):**
+1. **Firebase**: crear/usar un proyecto de Firebase, generar una Service Account Key (Firebase Console → Project settings → Service accounts → Generate New Private Key) y subirla en el dashboard de EAS (Project → Credentials → Android → Service Credentials → FCM V1 service account key). Sin esto, Android no entrega los push aunque todo el código esté bien.
+2. **Database Webhook**: Supabase dashboard → Database → Webhooks → nuevo webhook sobre `INSERT` en `notificaciones`, apuntando a la URL de `enviar-push`.
+3. **Build nuevo de EAS**: obligatorio por el módulo nativo nuevo (`expo-notifications`) — no aplica por OTA.
+
+**Diferido a propósito para una vuelta futura** (no se tocó en esta ronda):
+- Notificar al aprobar/rechazar curaduría (producto o proveedor sugerido) — mismo patrón reactivo que `avanzar_estado_pedido`, pero tocaría 4 RPCs ya revisadas varias veces (`aprobar_producto_sugerido`, `rechazar_producto_sugerido`, `aprobar_proveedor_sugerido`, `rechazar_proveedor_sugerido`) — se prefirió no mezclarlo con la primera vuelta de infraestructura para no arriesgar esas funciones en el mismo cambio.
+- Sugerencia de reabastecimiento proactiva ("ya te tocaría reponer X" como push, no solo card al abrir la app) — requiere `pg_cron` + lógica de "no duplicar aviso", es un bloque de trabajo aparte.
 
 > **Gap #6 resuelto (16 jul 2026).** Ver sección Resuelto — el flujo completo ya existe.
 
