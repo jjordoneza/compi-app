@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Animated, Image } from 'react-native';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { cargarSesion, haySesion, usuarioActual } from '../auth';
 import { MisComercios } from '../supabase';
@@ -68,13 +68,9 @@ export default function SplashScreen({ navigation }) {
     }
   }
 
-  // TODO(logo): cuando esté el archivo del logo en assets/, reemplazar este
-  // <Animated.Text> por <Animated.Image source={require('../assets/logo.png')} .../>
-  // dentro del mismo Animated.View — la animación de entrada (fade + scale) ya
-  // queda lista y no cambia.
   const logoAnimado = (
     <Animated.View style={{ opacity: opacidad, transform: [{ scale: escala }] }}>
-      <Text style={styles.logo}>compi</Text>
+      <Image source={require('../assets/splash-icon.png')} style={styles.logo} resizeMode="contain" />
     </Animated.View>
   );
 
@@ -100,7 +96,7 @@ export default function SplashScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
-  logo: { fontSize: 44, fontWeight: '600', color: COLORS.primary, letterSpacing: -1 },
+  logo: { width: 220, aspectRatio: 1070 / 375 },
   subtitle: { marginTop: 12, fontSize: 14, color: COLORS.text },
   boton: { marginTop: 30, backgroundColor: COLORS.primary, paddingVertical: 14, paddingHorizontal: 40, borderRadius: RADIUS.md },
   botonTexto: { color: COLORS.white, fontSize: 16, fontWeight: '600' },

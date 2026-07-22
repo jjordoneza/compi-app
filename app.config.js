@@ -19,7 +19,7 @@ module.exports = {
       package: 'com.jjordoneza.compi',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#ffffff',
+        backgroundColor: '#F2F8F8',
       },
       edgeToEdgeEnabled: true,
       config: {

@@ -272,14 +272,27 @@ Verificado: `node --check` en todos los `.js` de `screens/` + `constants.js`; `n
 
 El usuario pidió 3 cosas en un solo mensaje, ninguna relacionada con las anteriores.
 
-**1. Ícono de la app con el logo real.** `assets/icon.png`, `adaptive-icon.png`,
-`splash-icon.png` y `favicon.png` siguen siendo el placeholder default de
-Expo (círculos concéntricos grises) — se confirmó abriendo el archivo. El
-usuario dice tener el logo ya diseñado pero no lo adjuntó en este bloque.
-**Falta que envíe el archivo** (idealmente PNG cuadrado, fondo transparente,
-1024×1024 para `icon`/`adaptive-icon` foreground, más una versión para
-splash) para reemplazar esos 4 archivos — `app.config.js` ya apunta a las
-rutas correctas, no hace falta tocar código cuando llegue, solo el binario.
+**1. Ícono de la app con el logo real — ✅ resuelto (22 jul 2026), mismo día.**
+El usuario envió el logo (JPEG, wordmark "compi" con una hormiga integrada
+en la "i", fondo plano claro ~`#F2F5F6`, casi idéntico a `COLORS.bg`).
+Procesado con Pillow (Python, instalado en este entorno para la ocasión —
+no hay ImageMagick): se recortó el fondo por distancia de color a los
+colores de las 4 esquinas (umbral con feathering para que el borde quede
+suave, no un corte duro) para obtener un PNG con transparencia real,
+incluyendo los huecos internos de las letras ("o", "p") como transparentes.
+De ahí se generaron los 4 archivos que ya usa `app.config.js`:
+- `icon.png` (1024×1024, fondo opaco `#F2F8F8`, logo al ~80% del ancho).
+- `adaptive-icon.png` (1024×1024, **transparente**, logo al ~62% — dentro
+  de la zona segura para que las máscaras circulares/squircle de Android
+  no le corten texto).
+- `splash-icon.png` (1070×375, transparente, proporción natural del
+  wordmark con un padding chico) — el mismo archivo lo usa también el
+  splash animado del punto 2.
+- `favicon.png` (256×256, mismo criterio que `icon.png`).
+
+De paso, `adaptiveIcon.backgroundColor` en `app.config.js` pasó de
+`#ffffff` a `#F2F8F8` para que combine con el logo en vez de dejar un
+recuadro blanco alrededor en Android.
 
 **2. Splash animado con el logo antes de Empezar/Home.** Implementado:
 - Dependencia nueva `expo-splash-screen` (`~31.0.13` — confirmado con el
@@ -294,11 +307,10 @@ rutas correctas, no hace falta tocar código cuando llegue, solo el binario.
   `hideAsync()` al montar el componente (evita parpadeo en blanco entre el
   splash nativo y este), y una animación `Animated.parallel` (fade +
   scale-spring) del logo antes de continuar con el flujo de rutero que ya
-  existía (sesión → comercios → Home/Registro/Seleccionar). Por ahora anima
-  el wordmark de texto "compi" (no hay archivo de imagen de logo todavía) —
-  queda un comentario `TODO(logo)` en el archivo señalando el único cambio
-  necesario (envolver un `Animated.Image` en vez del `Animated.Text`) para
-  cuando llegue el archivo del punto 1.
+  existía (sesión → comercios → Home/Registro/Seleccionar). Anima
+  `assets/splash-icon.png` (el logo real, ver punto 1 arriba) con
+  `Image`/`aspectRatio` en vez del wordmark de texto placeholder del primer
+  intento.
 - **Es un módulo nativo nuevo → mismo fingerprint nuevo que ya exigía
   `expo-notifications`/`expo-constants` (PR #52) → un solo build de EAS
   nuevo cubre ambos cambios**, no hace falta build aparte.
