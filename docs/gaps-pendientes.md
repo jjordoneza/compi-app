@@ -264,6 +264,91 @@ Verificado: `node --check` en todos los `.js` de `screens/` + `constants.js`; `n
 
 ## Pendientes ya registrados de conversaciones anteriores (no son de esta revisión, se listan para no perderlos)
 
-- **Términos de uso / política de privacidad**: pendiente diseñar antes de lanzar a tenderos reales — `ImportarContactosScreen` envía contactos reales (nombres de terceros) a la API de Anthropic vía `ai-proxy` para clasificación.
+- **Términos de uso / política de privacidad**: ✅ primer borrador escrito (22 jul 2026) — ver sección nueva abajo. Sigue pendiente que un abogado los revise antes de publicarlos, y llenar los `[COMPLETAR: ...]` con datos reales de la empresa. `ImportarContactosScreen` envía contactos reales (nombres de terceros) a la API de Anthropic vía `ai-proxy` para clasificación — ya cubierto en la política nueva (sección "con quién compartimos datos").
 - **`pedidos.estado`** en datos sembrados: ya resuelto (sincronizado a `entregado` para Minimercado La 80).
 - **`docs/catalogo-matching-unidades.md`** (curaduría-por-coincidencia + estandarización de unidades): diseño completo y aprobado, implementación pausada explícitamente hasta después de gap #2 Fase 3. Fase 3 ya está en producción — **retomable ahora**, si se quiere priorizar sobre Fase 4 o en paralelo.
+
+## Logo animado + términos/privacidad — 22 jul 2026
+
+El usuario pidió 3 cosas en un solo mensaje, ninguna relacionada con las anteriores.
+
+**1. Ícono de la app con el logo real.** `assets/icon.png`, `adaptive-icon.png`,
+`splash-icon.png` y `favicon.png` siguen siendo el placeholder default de
+Expo (círculos concéntricos grises) — se confirmó abriendo el archivo. El
+usuario dice tener el logo ya diseñado pero no lo adjuntó en este bloque.
+**Falta que envíe el archivo** (idealmente PNG cuadrado, fondo transparente,
+1024×1024 para `icon`/`adaptive-icon` foreground, más una versión para
+splash) para reemplazar esos 4 archivos — `app.config.js` ya apunta a las
+rutas correctas, no hace falta tocar código cuando llegue, solo el binario.
+
+**2. Splash animado con el logo antes de Empezar/Home.** Implementado:
+- Dependencia nueva `expo-splash-screen` (`~31.0.13` — confirmado con el
+  `package.json` real de la rama `sdk-54` de `expo/expo` en GitHub, mismo
+  método que ya se usó para `expo-notifications`/`expo-constants`, porque
+  adivinar versión mal ya rompió un build antes en este proyecto).
+- `app.config.js`: se quitó la clave `splash` legacy (top-level) y se
+  agregó como plugin `expo-splash-screen` (imagen, `backgroundColor` ahora
+  `COLORS.bg` en vez de blanco puro, para que el splash nativo estático no
+  contraste con la pantalla animada que viene después).
+- `SplashScreen.js`: `preventAutoHideAsync()` al montar el módulo +
+  `hideAsync()` al montar el componente (evita parpadeo en blanco entre el
+  splash nativo y este), y una animación `Animated.parallel` (fade +
+  scale-spring) del logo antes de continuar con el flujo de rutero que ya
+  existía (sesión → comercios → Home/Registro/Seleccionar). Por ahora anima
+  el wordmark de texto "compi" (no hay archivo de imagen de logo todavía) —
+  queda un comentario `TODO(logo)` en el archivo señalando el único cambio
+  necesario (envolver un `Animated.Image` en vez del `Animated.Text`) para
+  cuando llegue el archivo del punto 1.
+- **Es un módulo nativo nuevo → mismo fingerprint nuevo que ya exigía
+  `expo-notifications`/`expo-constants` (PR #52) → un solo build de EAS
+  nuevo cubre ambos cambios**, no hace falta build aparte.
+
+**3. Términos de uso y política de privacidad — primer borrador escrito.**
+`docs/terminos-de-uso.md` y `docs/politica-de-privacidad.md` (nuevos).
+Ambos marcados arriba del todo como **borrador de trabajo, no publicar
+sin que los revise un abogado**, con placeholders `[COMPLETAR: ...]` para
+NIT/razón social/correo de contacto reales.
+
+**Pregunta del usuario: ¿es legal monetizar las bases de datos de Compi
+más adelante?** Respuesta corta: **sí puede serlo, pero no de cualquier
+forma** — no es una decisión de producto libre, está regulada por la
+**Ley 1581 de 2012** (habeas data) y el **Decreto 1377 de 2013**:
+
+- Se necesita **autorización previa, expresa e informada del titular**
+  para esa finalidad específica — una cláusula genérica de "usamos tus
+  datos para mejorar el servicio" **no alcanza** para cubrir venderlos o
+  compartirlos con terceros comerciales; hay que decirlo explícito.
+- **Por eso la política de privacidad nueva ya incluye esa finalidad**
+  (sección 4.3, "uso estadístico y comercial") aunque Compi no la vaya a
+  ejercer todavía — pedir ese consentimiento *ahora*, al momento del
+  registro, evita tener que volver a pedirle autorización a toda la base
+  de usuarios existente el día que se active de verdad. Es la razón
+  concreta de escribirlo ya.
+- **Dato importante para bajar el riesgo real**: muchos tenderos son
+  personas naturales, así que su historial de compras cuenta como **dato
+  personal** si se puede rastrear a ellos. Información **agregada o
+  anonimizada** (ej. "tendencia de compra por zona/categoría", sin poder
+  identificar a un comercio puntual) es much más segura legal y
+  reputacionalmente, y probablemente el modelo de monetización con menos
+  fricción para empezar — vender datos identificables uno a uno a un
+  tercero (ej. a un proveedor competidor) es donde más riesgo regulatorio
+  y de confianza del tendero hay.
+- **RNBD (Registro Nacional de Bases de Datos, ante la SIC)**: solo es
+  obligatorio para empresas con activos por encima de 100.000 UVT
+  (~$5.237 millones de pesos para 2026) — Compi hoy está muy por debajo,
+  así que **no aplica registrarse todavía**, pero el deber sustantivo de
+  la ley (autorización, seguridad, límite de la finalidad, derechos ARCO)
+  aplica igual sin importar el tamaño de la empresa.
+- **Las sanciones son reales si se hace mal**: la SIC puede multar hasta
+  2.000 SMLMV, suspender el tratamiento hasta 6 meses, o cerrar la
+  operación — justifica tener un abogado revisando esto antes de activar
+  cualquier venta de datos real, no solo antes de publicar la política.
+
+**No implementado en este bloque** (solo la cláusula de autorización que
+lo habilita a futuro): ningún mecanismo real de exportar/vender datos a
+terceros. Es trabajo aparte, para cuando el usuario decida priorizarlo.
+
+Verificado: `node --check` en `app.config.js` y todos los `.js` tocados;
+`package-lock.json` regenerado (`npm install --package-lock-only`,
+confirmado que `expo-splash-screen@31.0.13` quedó resuelto). No hay
+migraciones ni cambios de `apps/admin-web` en este bloque.

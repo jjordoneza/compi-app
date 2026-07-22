@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
+import * as ExpoSplashScreen from 'expo-splash-screen';
 import { cargarSesion, haySesion, usuarioActual } from '../auth';
 import { MisComercios } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
@@ -9,10 +10,23 @@ import { COLORS, RADIUS } from '../theme';
 // con el spinner de arranque para siempre.
 const TIMEOUT_RESTAURAR_MS = 8000;
 
+// El splash nativo (estático, configurado vía el plugin expo-splash-screen en
+// app.config.js) se queda visible hasta que se llame hideAsync() — así no hay
+// pantalla en blanco entre que abre la app y que este componente monta.
+ExpoSplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function SplashScreen({ navigation }) {
   const [verificando, setVerificando] = useState(true);
+  const opacidad = useRef(new Animated.Value(0)).current;
+  const escala = useRef(new Animated.Value(0.85)).current;
 
   useEffect(() => {
+    ExpoSplashScreen.hideAsync().catch(() => {});
+    Animated.parallel([
+      Animated.timing(opacidad, { toValue: 1, duration: 450, useNativeDriver: true }),
+      Animated.spring(escala, { toValue: 1, friction: 6, useNativeDriver: true }),
+    ]).start();
+
     let vencido = false; // true cuando ya se dejó de esperar (timeout o resuelto)
     restaurar(() => vencido);
     const timeout = setTimeout(() => {
@@ -54,10 +68,20 @@ export default function SplashScreen({ navigation }) {
     }
   }
 
+  // TODO(logo): cuando esté el archivo del logo en assets/, reemplazar este
+  // <Animated.Text> por <Animated.Image source={require('../assets/logo.png')} .../>
+  // dentro del mismo Animated.View — la animación de entrada (fade + scale) ya
+  // queda lista y no cambia.
+  const logoAnimado = (
+    <Animated.View style={{ opacity: opacidad, transform: [{ scale: escala }] }}>
+      <Text style={styles.logo}>compi</Text>
+    </Animated.View>
+  );
+
   if (verificando) {
     return (
       <View style={styles.container}>
-        <Text style={styles.logo}>compi</Text>
+        {logoAnimado}
         <ActivityIndicator color={COLORS.primary} style={{ marginTop: 24 }} />
       </View>
     );
@@ -65,7 +89,7 @@ export default function SplashScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>compi</Text>
+      {logoAnimado}
       <Text style={styles.subtitle}>Abastece tu negocio fácil</Text>
       <TouchableOpacity style={styles.boton} onPress={() => navigation.replace('Login')}>
         <Text style={styles.botonTexto}>Empezar</Text>

@@ -12,11 +12,6 @@ module.exports = {
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',
     newArchEnabled: true,
-    splash: {
-      image: './assets/splash-icon.png',
-      resizeMode: 'contain',
-      backgroundColor: '#ffffff',
-    },
     ios: {
       supportsTablet: true,
     },
@@ -54,6 +49,15 @@ module.exports = {
         {
           icon: './assets/icon.png',
           color: '#0E7C86',
+        },
+      ],
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/splash-icon.png',
+          imageWidth: 200,
+          resizeMode: 'contain',
+          backgroundColor: '#F2F8F8',
         },
       ],
     ],

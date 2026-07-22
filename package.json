@@ -16,6 +16,7 @@
     "expo-contacts": "~15.0.9",
     "expo-location": "~19.0.8",
     "expo-notifications": "~0.32.17",
+    "expo-splash-screen": "~31.0.13",
     "react-native-maps": "1.20.1",
     "expo-secure-store": "~15.0.7",
     "expo-status-bar": "~3.0.9",
