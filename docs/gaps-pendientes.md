@@ -493,3 +493,32 @@ notificaciones de curaduría son 100% del lado servidor, no requieren tocar
 las pantallas de aprobación). `node --check` limpio en los 5 `.js` tocados
 (`supabase.js`, `App.js`, `screens/SplashScreen.js`,
 `screens/VerificacionScreen.js`, `screens/AceptarTerminosScreen.js` nuevo).
+
+## 2 fixes reportados al probar el build nuevo — 23 jul 2026
+
+El usuario probó el build con push notifications + logo + splash y reportó
+2 problemas (capturas de pantalla):
+
+1. **Logo del Splash enorme y recortado por ambos bordes de la pantalla —
+   ✅ corregido.** `SplashScreen.js` usaba `style={{ width: 220, aspectRatio: 1070/375 }}`
+   en el `<Image>` (sin `height` explícito). Con `newArchEnabled: true`
+   (Fabric) esa combinación se estaba resolviendo mal — el logo salía
+   renderizado a un tamaño mucho mayor al esperado, tanto que se veía
+   recortado por los dos lados en vez de centrado. Cambiado a `width` +
+   `height` explícitos (`height = round(220 * 375/1070)` ≈ 77), sin
+   depender de que Yoga infiera la altura vía `aspectRatio`. `resizeMode`
+   se movió de prop a `style` de paso (más consistente con Fabric).
+2. **Faltaba la alerta de "no cubre tu zona" en Agregar proveedor — ✅
+   agregada.** El badge positivo "📍 Cubre tu zona" ya existía (gap P2 #9),
+   pero no había ningún aviso equivalente para los proveedores en "Otros
+   proveedores en Compi" (los que no tienen cobertura confirmada) — el
+   usuario pidió una alerta pequeña, amarilla, a la derecha de la fila.
+   Agregado: chip `avisoZona` (fondo `COLORS.warningBg`, texto
+   `COLORS.warning`) con el texto "Puede no cubrir tu zona", en una columna
+   a la derecha junto al check — se muestra en cualquier proveedor con
+   `!cubreZona` (mismo cálculo de confianza que ya existía, umbral 0.3), o
+   sea automáticamente en toda la sección "Otros proveedores en Compi".
+
+Verificado: `node --check` en `screens/SplashScreen.js` y
+`screens/tendero/AgregarProveedorScreen.js`. Sin migraciones ni cambios de
+`apps/admin-web`.
