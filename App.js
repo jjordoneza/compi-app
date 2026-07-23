@@ -8,6 +8,7 @@ import { ComercioActualProvider } from './comercioActual';
 import SplashScreen from './screens/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
 import VerificacionScreen from './screens/VerificacionScreen';
+import AceptarTerminosScreen from './screens/AceptarTerminosScreen';
 import RegistroNegocioScreen from './screens/RegistroNegocioScreen';
 import ConfirmarUbicacionScreen from './screens/ConfirmarUbicacionScreen';
 import ImportarContactosScreen from './screens/ImportarContactosScreen';
@@ -87,6 +88,7 @@ export default function App() {
           <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Verificacion" component={VerificacionScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="AceptarTerminos" component={AceptarTerminosScreen} options={{ headerShown: false }} />
           <Stack.Screen name="RegistroNegocio" component={RegistroNegocioScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ConfirmarUbicacion" component={ConfirmarUbicacionScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ImportarContactos" component={ImportarContactosScreen} options={{ headerShown: false }} />

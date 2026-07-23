@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Animated, Image } from 'react-native';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { cargarSesion, haySesion, usuarioActual } from '../auth';
-import { MisComercios } from '../supabase';
+import { MisComercios, Terminos } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
 
 // Si restaurar() ni resuelve ni falla (red colgada, no un error real) en este
@@ -42,6 +42,15 @@ export default function SplashScreen({ navigation }) {
       if (yaVencido()) return; // el timeout ya mostró "Empezar"; no pisar esa pantalla
       if (!haySesion()) {
         setVerificando(false);
+        return;
+      }
+      // Gate obligatorio (Ley 1581 de 2012): sin aceptar la versión vigente
+      // de Términos/Privacidad no se sigue de largo a comercios/Home. Va antes
+      // que cualquier otra decisión de rutero.
+      const pendiente = await Terminos.pendientes();
+      if (yaVencido()) return;
+      if (pendiente) {
+        navigation.replace('AceptarTerminos');
         return;
       }
       // Sesión válida: rutea directo según los comercios del usuario.
