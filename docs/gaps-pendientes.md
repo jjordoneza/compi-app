@@ -33,8 +33,25 @@ El residual era de **fricción**: los productos creados desde "Pegar pedido" / "
 - `PegarPedidoScreen`: campo de precio opcional (`$`, teclado numérico) por producto detectado. Se manda como `precio_pactado` tanto si el ítem se vincula directo (`ProductosRelacionExt.crear`) como si va a curaduría (`ProductosSugeridos.crear` — la columna `precio_pactado` ya existía ahí desde la migración `0003` y `aprobar_producto_sugerido` ya la copiaba a `productos_relacion` al aprobar, así que no había nada que tocar en el backend).
 - `ConfirmarPedidoScreen`: banner "Faltan N precios · ponlos ahora" cuando hay ítems sin precio, tocable. Cada ítem sin precio también es tocable directo ("tócalo para ponerlo"), con el mismo patrón de edición inline que `NuevoAbastecimientoScreen` (`ProductosRelacionExt.actualizar` + estado local `grupos`, en vez de navegar a otra pantalla y perder el borrador del pedido). El total estimado y "Precio incompleto" por proveedor se recalculan en vivo tras cada precio guardado.
 
-### 5. Sin decisión de infraestructura de notificaciones push
-La pantalla de Notificaciones y el diseño de "notificaciones agrupadas por comercio" del Motor de Reabastecimiento Predictivo asumen push funcionando, pero no hay decisión de qué servicio usar (candidato natural: Expo Push Notifications, ya que el proyecto es Expo) ni manejo de permisos/tokens.
+### 5. Infraestructura de notificaciones push — ✅ resuelto (21 jul 2026), alcance parcial a propósito
+Decisión confirmada con el usuario: **Expo Push Notifications** (candidato natural, el proyecto ya es Expo) — infraestructura completa + 1 disparador reactivo. Quedan 2 disparadores para una vuelta futura, ver abajo.
+
+**Implementado:**
+- Dependencias nuevas: `expo-notifications` (~0.32.17) y `expo-constants` (~18.0.13, compatibles con Expo SDK 54) + plugin en `app.config.js`. **Son módulos nativos nuevos — cambian el fingerprint, hace falta un build nuevo de EAS (no basta con OTA) la primera vez que se instale esta versión.**
+- Migración `0039`: tabla `push_tokens` (token de Expo por comercio, upsert por `on_conflict=comercio_id,token`) y tabla `notificaciones` (historial — pantalla 24 del diseño, "Notificaciones"). RLS: el tendero solo ve/escribe lo de su propio comercio; **nadie inserta en `notificaciones` directo** (`for insert` sin policy) — solo lo hacen funciones `SECURITY DEFINER`.
+- `avanzar_estado_pedido` (migración 0038) ahora, además de lo que ya hacía, inserta una notificación cuando el pedido pasa a `confirmado` o `entregado` — envuelta en su propio `begin/exception` para que un fallo ahí nunca tumbe el avance de estado en sí.
+- Nueva Edge Function `supabase/functions/enviar-push`: la dispara un **Database Webhook** (Supabase → Database → Webhooks, **se configura a mano en el dashboard, no hay forma de crearlo por migración SQL**) sobre `INSERT` en `notificaciones`. Busca los `push_tokens` del comercio con la service role key (inyectada automática, sin secreto nuevo que configurar) y llama la API de Expo Push (`https://exp.host/--/api/v2/push/send`, no necesita key propia).
+- RN: `notificaciones.js` (pide permiso + registra el token, nunca bloquea — mismo criterio que `capturarUbicacion()`), llamado una vez al entrar a Home (`TabNavigator.js`). Nueva pantalla `NotificacionesScreen` (historial, toca para marcar leída) enlazada desde Perfil con badge de no leídas.
+- Verificado con Postgres local (rol de bajo privilegio, no superuser, para que RLS se probara de verdad — el primer intento con `sudo -u postgres` daba falsos positivos porque el superusuario bypasea RLS siempre): no-miembro ve 0 filas, miembro real ve las suyas, insert directo del cliente a `notificaciones` rechazado, notificaciones se generan correctamente en cada transición de estado.
+
+**Pendiente de configurar a mano (no es código, son pasos de dashboard):**
+1. **Firebase**: crear/usar un proyecto de Firebase, generar una Service Account Key (Firebase Console → Project settings → Service accounts → Generate New Private Key) y subirla en el dashboard de EAS (Project → Credentials → Android → Service Credentials → FCM V1 service account key). Sin esto, Android no entrega los push aunque todo el código esté bien.
+2. **Database Webhook**: Supabase dashboard → Database → Webhooks → nuevo webhook sobre `INSERT` en `notificaciones`, apuntando a la URL de `enviar-push`.
+3. **Build nuevo de EAS**: obligatorio por el módulo nativo nuevo (`expo-notifications`) — no aplica por OTA.
+
+**Diferido a propósito para una vuelta futura** (no se tocó en esta ronda):
+- Notificar al aprobar/rechazar curaduría (producto o proveedor sugerido) — mismo patrón reactivo que `avanzar_estado_pedido`, pero tocaría 4 RPCs ya revisadas varias veces (`aprobar_producto_sugerido`, `rechazar_producto_sugerido`, `aprobar_proveedor_sugerido`, `rechazar_proveedor_sugerido`) — se prefirió no mezclarlo con la primera vuelta de infraestructura para no arriesgar esas funciones en el mismo cambio.
+- Sugerencia de reabastecimiento proactiva ("ya te tocaría reponer X" como push, no solo card al abrir la app) — requiere `pg_cron` + lógica de "no duplicar aviso", es un bloque de trabajo aparte.
 
 > **Gap #6 resuelto (16 jul 2026).** Ver sección Resuelto — el flujo completo ya existe.
 
@@ -247,6 +264,103 @@ Verificado: `node --check` en todos los `.js` de `screens/` + `constants.js`; `n
 
 ## Pendientes ya registrados de conversaciones anteriores (no son de esta revisión, se listan para no perderlos)
 
-- **Términos de uso / política de privacidad**: pendiente diseñar antes de lanzar a tenderos reales — `ImportarContactosScreen` envía contactos reales (nombres de terceros) a la API de Anthropic vía `ai-proxy` para clasificación.
+- **Términos de uso / política de privacidad**: ✅ primer borrador escrito (22 jul 2026) — ver sección nueva abajo. Sigue pendiente que un abogado los revise antes de publicarlos, y llenar los `[COMPLETAR: ...]` con datos reales de la empresa. `ImportarContactosScreen` envía contactos reales (nombres de terceros) a la API de Anthropic vía `ai-proxy` para clasificación — ya cubierto en la política nueva (sección "con quién compartimos datos").
 - **`pedidos.estado`** en datos sembrados: ya resuelto (sincronizado a `entregado` para Minimercado La 80).
 - **`docs/catalogo-matching-unidades.md`** (curaduría-por-coincidencia + estandarización de unidades): diseño completo y aprobado, implementación pausada explícitamente hasta después de gap #2 Fase 3. Fase 3 ya está en producción — **retomable ahora**, si se quiere priorizar sobre Fase 4 o en paralelo.
+
+## Logo animado + términos/privacidad — 22 jul 2026
+
+El usuario pidió 3 cosas en un solo mensaje, ninguna relacionada con las anteriores.
+
+**1. Ícono de la app con el logo real — ✅ resuelto (22 jul 2026), mismo día.**
+El usuario envió el logo (JPEG, wordmark "compi" con una hormiga integrada
+en la "i", fondo plano claro ~`#F2F5F6`, casi idéntico a `COLORS.bg`).
+Procesado con Pillow (Python, instalado en este entorno para la ocasión —
+no hay ImageMagick): se recortó el fondo por distancia de color a los
+colores de las 4 esquinas (umbral con feathering para que el borde quede
+suave, no un corte duro) para obtener un PNG con transparencia real,
+incluyendo los huecos internos de las letras ("o", "p") como transparentes.
+De ahí se generaron los 4 archivos que ya usa `app.config.js`:
+- `icon.png` (1024×1024, fondo opaco `#F2F8F8`, logo al ~80% del ancho).
+- `adaptive-icon.png` (1024×1024, **transparente**, logo al ~62% — dentro
+  de la zona segura para que las máscaras circulares/squircle de Android
+  no le corten texto).
+- `splash-icon.png` (1070×375, transparente, proporción natural del
+  wordmark con un padding chico) — el mismo archivo lo usa también el
+  splash animado del punto 2.
+- `favicon.png` (256×256, mismo criterio que `icon.png`).
+
+De paso, `adaptiveIcon.backgroundColor` en `app.config.js` pasó de
+`#ffffff` a `#F2F8F8` para que combine con el logo en vez de dejar un
+recuadro blanco alrededor en Android.
+
+**2. Splash animado con el logo antes de Empezar/Home.** Implementado:
+- Dependencia nueva `expo-splash-screen` (`~31.0.13` — confirmado con el
+  `package.json` real de la rama `sdk-54` de `expo/expo` en GitHub, mismo
+  método que ya se usó para `expo-notifications`/`expo-constants`, porque
+  adivinar versión mal ya rompió un build antes en este proyecto).
+- `app.config.js`: se quitó la clave `splash` legacy (top-level) y se
+  agregó como plugin `expo-splash-screen` (imagen, `backgroundColor` ahora
+  `COLORS.bg` en vez de blanco puro, para que el splash nativo estático no
+  contraste con la pantalla animada que viene después).
+- `SplashScreen.js`: `preventAutoHideAsync()` al montar el módulo +
+  `hideAsync()` al montar el componente (evita parpadeo en blanco entre el
+  splash nativo y este), y una animación `Animated.parallel` (fade +
+  scale-spring) del logo antes de continuar con el flujo de rutero que ya
+  existía (sesión → comercios → Home/Registro/Seleccionar). Anima
+  `assets/splash-icon.png` (el logo real, ver punto 1 arriba) con
+  `Image`/`aspectRatio` en vez del wordmark de texto placeholder del primer
+  intento.
+- **Es un módulo nativo nuevo → mismo fingerprint nuevo que ya exigía
+  `expo-notifications`/`expo-constants` (PR #52) → un solo build de EAS
+  nuevo cubre ambos cambios**, no hace falta build aparte.
+
+**3. Términos de uso y política de privacidad — primer borrador escrito.**
+`docs/terminos-de-uso.md` y `docs/politica-de-privacidad.md` (nuevos).
+Ambos marcados arriba del todo como **borrador de trabajo, no publicar
+sin que los revise un abogado**, con placeholders `[COMPLETAR: ...]` para
+NIT/razón social/correo de contacto reales.
+
+**Pregunta del usuario: ¿es legal monetizar las bases de datos de Compi
+más adelante?** Respuesta corta: **sí puede serlo, pero no de cualquier
+forma** — no es una decisión de producto libre, está regulada por la
+**Ley 1581 de 2012** (habeas data) y el **Decreto 1377 de 2013**:
+
+- Se necesita **autorización previa, expresa e informada del titular**
+  para esa finalidad específica — una cláusula genérica de "usamos tus
+  datos para mejorar el servicio" **no alcanza** para cubrir venderlos o
+  compartirlos con terceros comerciales; hay que decirlo explícito.
+- **Por eso la política de privacidad nueva ya incluye esa finalidad**
+  (sección 4.3, "uso estadístico y comercial") aunque Compi no la vaya a
+  ejercer todavía — pedir ese consentimiento *ahora*, al momento del
+  registro, evita tener que volver a pedirle autorización a toda la base
+  de usuarios existente el día que se active de verdad. Es la razón
+  concreta de escribirlo ya.
+- **Dato importante para bajar el riesgo real**: muchos tenderos son
+  personas naturales, así que su historial de compras cuenta como **dato
+  personal** si se puede rastrear a ellos. Información **agregada o
+  anonimizada** (ej. "tendencia de compra por zona/categoría", sin poder
+  identificar a un comercio puntual) es much más segura legal y
+  reputacionalmente, y probablemente el modelo de monetización con menos
+  fricción para empezar — vender datos identificables uno a uno a un
+  tercero (ej. a un proveedor competidor) es donde más riesgo regulatorio
+  y de confianza del tendero hay.
+- **RNBD (Registro Nacional de Bases de Datos, ante la SIC)**: solo es
+  obligatorio para empresas con activos por encima de 100.000 UVT
+  (~$5.237 millones de pesos para 2026) — Compi hoy está muy por debajo,
+  así que **no aplica registrarse todavía**, pero el deber sustantivo de
+  la ley (autorización, seguridad, límite de la finalidad, derechos ARCO)
+  aplica igual sin importar el tamaño de la empresa.
+- **Las sanciones son reales si se hace mal**: la SIC puede multar hasta
+  2.000 SMLMV, suspender el tratamiento hasta 6 meses, o cerrar la
+  operación — justifica tener un abogado revisando esto antes de activar
+  cualquier venta de datos real, no solo antes de publicar la política.
+
+**No implementado en este bloque** (solo la cláusula de autorización que
+lo habilita a futuro): ningún mecanismo real de exportar/vender datos a
+terceros. Es trabajo aparte, para cuando el usuario decida priorizarlo.
+
+Verificado: `node --check` en `app.config.js` y todos los `.js` tocados;
+`package-lock.json` regenerado (`npm install --package-lock-only`,
+confirmado que `expo-splash-screen@31.0.13` quedó resuelto). No hay
+migraciones ni cambios de `apps/admin-web` en este bloque.

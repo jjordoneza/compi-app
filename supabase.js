@@ -160,6 +160,30 @@ export const ComercioPorTelefono = {
     }).then(manejar),
 };
 
+// Push notifications (Expo Push) — ver supabase/migrations/0039 y
+// supabase/functions/enviar-push. registrar() hace upsert (on_conflict
+// comercio_id,token): la app llama esto cada vez que abre Home, sin
+// preocuparse de si el token ya estaba guardado de una sesión anterior.
+export const PushTokens = {
+  registrar: (comercioId, token, plataforma) =>
+    fetch(`${SUPABASE_URL}/rest/v1/push_tokens?on_conflict=comercio_id,token`, {
+      method: 'POST',
+      headers: { ...HEADERS, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ comercio_id: comercioId, token, plataforma }),
+    }).then(manejar),
+};
+
+export const Notificaciones = {
+  listarPorComercio: (comercioId) =>
+    fetch(`${SUPABASE_URL}/rest/v1/notificaciones?comercio_id=eq.${comercioId}&select=*&order=created_at.desc`, { headers: HEADERS }).then(manejar),
+  marcarLeida: (id) =>
+    fetch(`${SUPABASE_URL}/rest/v1/notificaciones?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: HEADERS,
+      body: JSON.stringify({ leida: true }),
+    }).then(manejar),
+};
+
 export const RelacionesExt = {
   ...Relaciones,
   // Sin filtrar por "activo" a propósito: el historial (Inicio, Pedidos) necesita

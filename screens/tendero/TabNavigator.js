@@ -6,6 +6,7 @@ import PedidosTabScreen from './PedidosTabScreen';
 import ProveedoresTabScreen from './ProveedoresTabScreen';
 import PerfilScreen from './PerfilScreen';
 import { useComercioActual } from '../../comercioActual';
+import { registrarPushToken } from '../../notificaciones';
 import { COLORS } from '../../theme';
 
 const Tab = createBottomTabNavigator();
@@ -23,6 +24,7 @@ export default function TabNavigator({ route }) {
   // pantallas leen el nombre del Context, no de este initialParams congelado.
   useEffect(() => {
     setComercioActual({ comercioId, comercioNombre });
+    registrarPushToken(comercioId);
   }, [comercioId, comercioNombre, setComercioActual]);
 
   return (

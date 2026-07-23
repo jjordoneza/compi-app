@@ -12,11 +12,6 @@ module.exports = {
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',
     newArchEnabled: true,
-    splash: {
-      image: './assets/splash-icon.png',
-      resizeMode: 'contain',
-      backgroundColor: '#ffffff',
-    },
     ios: {
       supportsTablet: true,
     },
@@ -24,7 +19,7 @@ module.exports = {
       package: 'com.jjordoneza.compi',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#ffffff',
+        backgroundColor: '#F2F8F8',
       },
       edgeToEdgeEnabled: true,
       config: {
@@ -47,6 +42,22 @@ module.exports = {
         'expo-location',
         {
           locationWhenInUsePermission: 'Compi usa tu ubicación al crear tu negocio para ayudarte a encontrar proveedores que sí cubren tu zona. No se te muestra ni se comparte con nadie.',
+        },
+      ],
+      [
+        'expo-notifications',
+        {
+          icon: './assets/icon.png',
+          color: '#0E7C86',
+        },
+      ],
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/splash-icon.png',
+          imageWidth: 200,
+          resizeMode: 'contain',
+          backgroundColor: '#F2F8F8',
         },
       ],
     ],
