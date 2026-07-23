@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Animated, Image } from 'react-native';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { cargarSesion, haySesion, usuarioActual } from '../auth';
-import { MisComercios } from '../supabase';
+import { MisComercios, Terminos } from '../supabase';
 import { COLORS, RADIUS } from '../theme';
 
 // Si restaurar() ni resuelve ni falla (red colgada, no un error real) en este
@@ -44,6 +44,15 @@ export default function SplashScreen({ navigation }) {
         setVerificando(false);
         return;
       }
+      // Gate obligatorio (Ley 1581 de 2012): sin aceptar la versión vigente
+      // de Términos/Privacidad no se sigue de largo a comercios/Home. Va antes
+      // que cualquier otra decisión de rutero.
+      const pendiente = await Terminos.pendientes();
+      if (yaVencido()) return;
+      if (pendiente) {
+        navigation.replace('AceptarTerminos');
+        return;
+      }
       // Sesión válida: rutea directo según los comercios del usuario.
       const comercios = await MisComercios.listar();
       if (yaVencido()) return;
@@ -70,7 +79,7 @@ export default function SplashScreen({ navigation }) {
 
   const logoAnimado = (
     <Animated.View style={{ opacity: opacidad, transform: [{ scale: escala }] }}>
-      <Image source={require('../assets/splash-icon.png')} style={styles.logo} resizeMode="contain" />
+      <Image source={require('../assets/splash-icon.png')} style={styles.logo} />
     </Animated.View>
   );
 
@@ -96,7 +105,12 @@ export default function SplashScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
-  logo: { width: 220, aspectRatio: 1070 / 375 },
+  // Ancho y alto fijos (no solo aspectRatio): con newArchEnabled (Fabric) el
+  // par width+aspectRatio-sin-height en <Image> se estaba resolviendo mal —
+  // el logo salía enorme y recortado por los dos bordes de la pantalla en
+  // vez de centrado a 220x77. Width+height explícitos no dependen de que
+  // Yoga infiera la altura, así que no tienen ese problema.
+  logo: { width: 220, height: Math.round((220 * 375) / 1070), resizeMode: 'contain' },
   subtitle: { marginTop: 12, fontSize: 14, color: COLORS.text },
   boton: { marginTop: 30, backgroundColor: COLORS.primary, paddingVertical: 14, paddingHorizontal: 40, borderRadius: RADIUS.md },
   botonTexto: { color: COLORS.white, fontSize: 16, fontWeight: '600' },

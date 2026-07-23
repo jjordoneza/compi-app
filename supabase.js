@@ -184,6 +184,23 @@ export const Notificaciones = {
     }).then(manejar),
 };
 
+// Términos de Uso / Política de Privacidad — ver supabase/migrations/0040.
+// El contenido vive en la base (no en el bundle de la app) para que quede
+// ligado 1 a 1 con lo que terminos_aceptaciones guarda como evidencia.
+export const DocumentosLegales = {
+  vigente: (tipo) =>
+    fetch(`${SUPABASE_URL}/rest/v1/documentos_legales?tipo=eq.${tipo}&select=id,version,contenido&order=created_at.desc&limit=1`, { headers: HEADERS })
+      .then(manejar)
+      .then((rows) => (rows && rows[0]) || null),
+};
+
+export const Terminos = {
+  pendientes: () =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/terminos_pendientes`, { method: 'POST', headers: HEADERS, body: '{}' }).then(manejar),
+  aceptar: () =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/aceptar_terminos`, { method: 'POST', headers: HEADERS, body: '{}' }).then(manejar),
+};
+
 export const RelacionesExt = {
   ...Relaciones,
   // Sin filtrar por "activo" a propósito: el historial (Inicio, Pedidos) necesita

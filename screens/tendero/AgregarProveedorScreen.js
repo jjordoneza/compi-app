@@ -125,8 +125,15 @@ export default function AgregarProveedorScreen({ route, navigation }) {
           {cubreZona && <Text style={styles.badgeCobertura}>📍 Cubre tu zona</Text>}
           {diaTexto && <Text style={styles.badgeDia}>Suele entregar los {diaTexto} en tu zona</Text>}
         </View>
-        <View style={[styles.check, activo && styles.checkActivo]}>
-          {activo && <Text style={styles.checkTexto}>✓</Text>}
+        <View style={styles.columnaDerecha}>
+          {!cubreZona && (
+            <View style={styles.avisoZona}>
+              <Text style={styles.avisoZonaTexto}>Puede no cubrir tu zona</Text>
+            </View>
+          )}
+          <View style={[styles.check, activo && styles.checkActivo]}>
+            {activo && <Text style={styles.checkTexto}>✓</Text>}
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -204,6 +211,9 @@ const styles = StyleSheet.create({
   itemUbicacion: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   badgeCobertura: { fontSize: 11, color: COLORS.success, fontWeight: '600', marginTop: 4 },
   badgeDia: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+  columnaDerecha: { alignItems: 'flex-end', gap: 6, marginLeft: 8 },
+  avisoZona: { backgroundColor: COLORS.warningBg, borderRadius: RADIUS.sm, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 100 },
+  avisoZonaTexto: { fontSize: 10, color: COLORS.warning, fontWeight: '600', textAlign: 'right' },
   check: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
   checkActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkTexto: { color: COLORS.white, fontSize: 12, fontWeight: '700' },

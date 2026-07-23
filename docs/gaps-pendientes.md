@@ -49,9 +49,11 @@ Decisión confirmada con el usuario: **Expo Push Notifications** (candidato natu
 2. **Database Webhook**: Supabase dashboard → Database → Webhooks → nuevo webhook sobre `INSERT` en `notificaciones`, apuntando a la URL de `enviar-push`.
 3. **Build nuevo de EAS**: obligatorio por el módulo nativo nuevo (`expo-notifications`) — no aplica por OTA.
 
-**Diferido a propósito para una vuelta futura** (no se tocó en esta ronda):
-- Notificar al aprobar/rechazar curaduría (producto o proveedor sugerido) — mismo patrón reactivo que `avanzar_estado_pedido`, pero tocaría 4 RPCs ya revisadas varias veces (`aprobar_producto_sugerido`, `rechazar_producto_sugerido`, `aprobar_proveedor_sugerido`, `rechazar_proveedor_sugerido`) — se prefirió no mezclarlo con la primera vuelta de infraestructura para no arriesgar esas funciones en el mismo cambio.
-- Sugerencia de reabastecimiento proactiva ("ya te tocaría reponer X" como push, no solo card al abrir la app) — requiere `pg_cron` + lógica de "no duplicar aviso", es un bloque de trabajo aparte.
+**Diferido en esta ronda, retomado y cerrado el 23 jul 2026** — ver sección
+"Notificaciones de curaduría + reabastecimiento proactivo + aceptación de
+términos" más abajo:
+- ~~Notificar al aprobar/rechazar curaduría (producto o proveedor sugerido)~~ ✅ resuelto (migración 0041).
+- ~~Sugerencia de reabastecimiento proactiva~~ ✅ resuelto (migración 0042).
 
 > **Gap #6 resuelto (16 jul 2026).** Ver sección Resuelto — el flujo completo ya existe.
 
@@ -364,3 +366,159 @@ Verificado: `node --check` en `app.config.js` y todos los `.js` tocados;
 `package-lock.json` regenerado (`npm install --package-lock-only`,
 confirmado que `expo-splash-screen@31.0.13` quedó resuelto). No hay
 migraciones ni cambios de `apps/admin-web` en este bloque.
+
+## Aceptación de términos (con histórico) + notificaciones de curaduría + reabastecimiento proactivo — 23 jul 2026
+
+El usuario confirmó que ya aplicó la migración `0039` y que el build nuevo de
+EAS (push notifications + logo + splash) está corriendo. Pidió 3 cosas:
+pantalla de aceptación de Términos/Privacidad con histórico verificable
+("la SIC puede exigir demostrar que el titular autorizó"), y retomar los 2
+ítems diferidos de la ronda de push notifications (curaduría + reabastecimiento
+proactivo). Migraciones nuevas: `0040`, `0041`, `0042` — **ninguna se ha
+aplicado todavía, correr a mano en el SQL Editor de Supabase, en orden**.
+Las 3 se verificaron localmente contra un Postgres 16 stub (forward +
+rollback), usando el rol `app_authenticated` sin privilegios de superusuario
+para que las pruebas de RLS/permisos fueran reales (mismo criterio que la
+migración `0039`).
+
+### 1. Aceptación de Términos de Uso / Política de Privacidad, con histórico
+
+**Decisión de diseño clave**: el contenido de los documentos vive en la base
+(`documentos_legales`), no solo en `docs/*.md`. Así el registro de aceptación
+(`terminos_aceptaciones`) queda ligado al **texto exacto** que el usuario vio
+en el momento de aceptar — si el texto cambia después, es una fila **nueva**
+en `documentos_legales`, nunca un `UPDATE` sobre una versión que alguien ya
+aceptó. Esto es justo lo que hace falta para poder demostrarle a la SIC (o a
+un tendero que reclama) qué autorizó exactamente y cuándo.
+
+- Migración `0040`: tabla `documentos_legales` (tipo `terminos`/`privacidad`,
+  `version`, `contenido`, insert-only — sin policy de update/delete para
+  clientes) y tabla `terminos_aceptaciones` (`usuario_id`, ids de los 2
+  documentos aceptados, `aceptado_en` — **insert-only también, ni siquiera el
+  propio usuario puede editar o borrar su fila**, mismo criterio que
+  `admin_audit_log`). RPC `terminos_pendientes()` (true si el usuario
+  autenticado no aceptó la versión vigente de ambos documentos — centraliza
+  la regla en el backend, así que un futuro cambio de versión dispara el
+  re-pedido de consentimiento sin tocar la app) y `aceptar_terminos()`
+  (inserta la aceptación de la versión vigente; el cliente no maneja ids).
+  Semilla: primera versión de cada documento, con el texto real de
+  `docs/terminos-de-uso.md`/`docs/politica-de-privacidad.md` (sin el bloque
+  de advertencia interna del borrador, que es nota para desarrollo, no parte
+  del texto legal). **Ojo**: esos documentos todavía tienen placeholders
+  `[COMPLETAR: ...]` (NIT, razón social, correo) — antes de un lanzamiento
+  real hay que completarlos y volver a insertar una fila **nueva** (nunca
+  editar la semilla ya sembrada).
+- RN: `supabase.js` (`DocumentosLegales.vigente(tipo)`, `Terminos.pendientes()`/`aceptar()`),
+  pantalla nueva `AceptarTerminosScreen.js` (trae ambos documentos vigentes de
+  la base y los muestra completos en un `ScrollView`, `Switch` sin marcar por
+  defecto + botón "Aceptar y continuar" deshabilitado hasta marcarlo, más un
+  link "No acepto" que cierra sesión — no se puede usar la app sin aceptar).
+  El gate vive en **un solo lugar**: `SplashScreen.restaurar()`, justo después
+  de confirmar que hay sesión y antes de decidir a dónde rutear (comercios/
+  registro/seleccionar) — si `Terminos.pendientes()` da true, rutea a
+  `AceptarTerminos` en vez de seguir. Al aceptar, la pantalla hace
+  `navigation.replace('Splash')` para que Splash vuelva a evaluar todo desde
+  cero (ahora sin pendiente).
+- **Simplificación de paso**: `VerificacionScreen.js` (login por OTP)
+  duplicaba la misma lógica de rutero por comercios que ya tenía
+  `SplashScreen` — se reemplazó por `navigation.replace('Splash')` tras
+  verificar el OTP, para que el gate de términos (y cualquier regla de
+  rutero futura) aplique en un solo lugar, sin tener que mantenerla en 2
+  archivos a la vez.
+- Verificado: usuario que nunca aceptó → `terminos_pendientes()` true;
+  acepta → pasa a false; otro usuario no se ve afectado (aislado por
+  `usuario_id`); un usuario no puede leer ni insertar una aceptación a
+  nombre de otro (RLS rechaza el insert); nadie puede `UPDATE`/`DELETE` una
+  fila ya insertada (ni el propio dueño); admin ve todas; anónimo (sin JWT)
+  no puede leer `documentos_legales`, cualquier autenticado sí.
+
+### 2. Notificaciones de curaduría (migración `0041`)
+
+`CREATE OR REPLACE` de las 4 RPCs de aprobación/rechazo (`aprobar_proveedor_sugerido`,
+`rechazar_proveedor_sugerido`, `aprobar_producto_sugerido`,
+`rechazar_producto_sugerido`) con el cuerpo más reciente de cada una (0035,
+0023, 0024, 0023 respectivamente) + un `insert into notificaciones` al final
+de cada una, envuelto en su propio `begin/exception` — mismo patrón que
+`avanzar_estado_pedido` (migración 0039): un fallo de notificación nunca
+bloquea la aprobación/rechazo real. Para `productos_sugeridos` (que no tiene
+`comercio_id` directo) se resuelve vía `relaciones.comercio_id`. Mensajes
+incluyen el motivo de rechazo cuando el admin lo escribió.
+
+Verificado: aprobar/rechazar proveedor y producto generan la notificación
+correcta con el `comercio_id` correcto (incluida la resolución vía join para
+producto); un no-admin sigue sin poder llamar estas RPCs; tras el rollback,
+aprobar un proveedor ya no genera notificación (vuelve al comportamiento
+exacto de antes de esta migración).
+
+### 3. Reabastecimiento proactivo por push (migración `0042`)
+
+Nueva función `notificar_reabastecimientos_pendientes()`, pensada para
+correr por `pg_cron` una vez al día (9am hora Colombia). Reusa
+`sugerencia_reabastecimiento()` (el mismo cálculo que ya usa el Home, un
+solo lugar de verdad para la regla de negocio: mínimo 3 compras, 1.3x,
+una sugerencia a la vez) para cada comercio activo, y por construcción
+cumple las 2 reglas de `CLAUDE.md`: **una sugerencia a la vez** (la RPC ya
+devuelve máximo 1 fila por comercio) y **agrupada por comercio, nunca por
+producto** (una sola notificación por comercio por corrida).
+
+**Dedup ("no duplicar aviso")**: columna nueva `reabastecimiento_sugerencias.notificado_en`.
+El job reusa/crea la fila de log con el mismo algoritmo que ya usa el
+cliente al mostrar la card en Inicio (`registrarSugerencia()` en
+`InicioScreen.js` — reusar la pendiente del mismo producto, marcar
+`ignorada` cualquier pendiente de otro producto) — se duplica ese algoritmo
+en SQL a propósito: el cron corre sin que el tendero tenga la app abierta,
+no hay forma de reusar el código JS del cliente. Si esa sugerencia puntual
+ya tiene `notificado_en` seteado, no se vuelve a notificar — solo una
+sugerencia genuinamente nueva (otro producto, o el mismo tras un ciclo de
+compra distinto) dispara push de nuevo.
+
+La función **no es invocable vía REST**: `revoke execute ... from public,
+anon, authenticated` — es un job interno, no una acción que el cliente deba
+poder disparar bajo ningún escenario.
+
+Verificado con datos simulados (3 compras espaciadas ~10 días, última hace
+20 días → dispara con umbral 13 días): 1ra corrida genera exactamente 1
+notificación para el comercio con cadencia vencida y ninguna para el que no
+tiene historial suficiente; 2da corrida el mismo día no duplica (0 enviadas,
+sigue habiendo solo 1 notificación); rol sin privilegios (`app_authenticated`)
+recibe `permission denied` al intentar llamar la función directo. El
+`cron.schedule`/`cron.unschedule` en sí no se pudo ejecutar en este entorno
+(pg_cron no está instalado en el Postgres local de este sandbox, a
+diferencia del Supabase real donde ya está habilitado desde la migración
+`0010`) — se verificó por inspección que la sintaxis es idéntica al patrón
+ya probado en producción en esa migración.
+
+**No tocado en este bloque**: ningún cambio en `apps/admin-web` (las
+notificaciones de curaduría son 100% del lado servidor, no requieren tocar
+las pantallas de aprobación). `node --check` limpio en los 5 `.js` tocados
+(`supabase.js`, `App.js`, `screens/SplashScreen.js`,
+`screens/VerificacionScreen.js`, `screens/AceptarTerminosScreen.js` nuevo).
+
+## 2 fixes reportados al probar el build nuevo — 23 jul 2026
+
+El usuario probó el build con push notifications + logo + splash y reportó
+2 problemas (capturas de pantalla):
+
+1. **Logo del Splash enorme y recortado por ambos bordes de la pantalla —
+   ✅ corregido.** `SplashScreen.js` usaba `style={{ width: 220, aspectRatio: 1070/375 }}`
+   en el `<Image>` (sin `height` explícito). Con `newArchEnabled: true`
+   (Fabric) esa combinación se estaba resolviendo mal — el logo salía
+   renderizado a un tamaño mucho mayor al esperado, tanto que se veía
+   recortado por los dos lados en vez de centrado. Cambiado a `width` +
+   `height` explícitos (`height = round(220 * 375/1070)` ≈ 77), sin
+   depender de que Yoga infiera la altura vía `aspectRatio`. `resizeMode`
+   se movió de prop a `style` de paso (más consistente con Fabric).
+2. **Faltaba la alerta de "no cubre tu zona" en Agregar proveedor — ✅
+   agregada.** El badge positivo "📍 Cubre tu zona" ya existía (gap P2 #9),
+   pero no había ningún aviso equivalente para los proveedores en "Otros
+   proveedores en Compi" (los que no tienen cobertura confirmada) — el
+   usuario pidió una alerta pequeña, amarilla, a la derecha de la fila.
+   Agregado: chip `avisoZona` (fondo `COLORS.warningBg`, texto
+   `COLORS.warning`) con el texto "Puede no cubrir tu zona", en una columna
+   a la derecha junto al check — se muestra en cualquier proveedor con
+   `!cubreZona` (mismo cálculo de confianza que ya existía, umbral 0.3), o
+   sea automáticamente en toda la sección "Otros proveedores en Compi".
+
+Verificado: `node --check` en `screens/SplashScreen.js` y
+`screens/tendero/AgregarProveedorScreen.js`. Sin migraciones ni cambios de
+`apps/admin-web`.

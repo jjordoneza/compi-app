@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert } from 'react-native';
-import { MisComercios, Cuenta } from '../supabase';
+import { Cuenta } from '../supabase';
 import { verificarOTP } from '../auth';
 import { COLORS, RADIUS } from '../theme';
 
@@ -18,17 +18,11 @@ export default function VerificacionScreen({ route, navigation }) {
       // Engancha comercios sembrados que coincidan con este teléfono (mejor esfuerzo).
       try { await Cuenta.reclamarComercios(); } catch (e) { /* noop */ }
 
-      const comercios = await MisComercios.listar();
-      if (comercios.length === 0) {
-        navigation.replace('RegistroNegocio', { telefono });
-      } else if (comercios.length === 1) {
-        navigation.replace('Home', { comercioId: comercios[0].id, comercioNombre: comercios[0].nombre });
-      } else {
-        navigation.replace('SeleccionarNegocio');
-      }
+      // Splash centraliza todo el rutero post-login (gate de términos incluido,
+      // luego comercios) — se reusa en vez de duplicarlo aquí.
+      navigation.replace('Splash');
     } catch (e) {
       Alert.alert('Código incorrecto', e.message);
-    } finally {
       setVerificando(false);
     }
   }
