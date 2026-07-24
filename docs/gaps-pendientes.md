@@ -268,7 +268,7 @@ Verificado: `node --check` en todos los `.js` de `screens/` + `constants.js`; `n
 
 - **Términos de uso / política de privacidad**: ✅ primer borrador escrito (22 jul 2026) — ver sección nueva abajo. Sigue pendiente que un abogado los revise antes de publicarlos, y llenar los `[COMPLETAR: ...]` con datos reales de la empresa. `ImportarContactosScreen` envía contactos reales (nombres de terceros) a la API de Anthropic vía `ai-proxy` para clasificación — ya cubierto en la política nueva (sección "con quién compartimos datos").
 - **`pedidos.estado`** en datos sembrados: ya resuelto (sincronizado a `entregado` para Minimercado La 80).
-- **`docs/catalogo-matching-unidades.md`** (curaduría-por-coincidencia + estandarización de unidades): diseño completo y aprobado, implementación pausada explícitamente hasta después de gap #2 Fase 3. Fase 3 ya está en producción — **retomable ahora**, si se quiere priorizar sobre Fase 4 o en paralelo.
+- **`docs/catalogo-matching-unidades.md`** — ✅ resuelto por completo (23 jul 2026). Esta entrada decía "retomable ahora" pero estaba obsoleta: la implementación real ya había pasado el 18-19 jul (migraciones `0024`/`0025`, `ai-proxy`, `PegarPedidoScreen`) — solo nadie actualizó el encabezado del doc ni esta lista. Al revisar para "retomarlo" se encontró que faltaba una sola pieza (la UI de confirmación de coincidencia para proveedores en `ImportarContactosScreen`, que `ai-proxy` ya calculaba pero la pantalla descartaba) — ver sección nueva abajo para el detalle completo.
 
 ## Logo animado + términos/privacidad — 22 jul 2026
 
@@ -567,3 +567,35 @@ recibe `No autorizado`. Rollback limpio.
 **No implementado**: ninguna pantalla de consumo (ni interna ni externa) —
 es trabajo aparte, para cuando se decida a quién mostrarle/venderle esto y
 en qué formato.
+
+## Cierre real de "curaduría por coincidencia" (`docs/catalogo-matching-unidades.md`) — 23 jul 2026
+
+El usuario pidió retomar este pendiente (le expliqué la idea con una
+analogía: hoy cada proveedor describe el mismo producto distinto, y sin
+esto el sistema no reconoce que es el mismo SKU). Antes de reescribir nada,
+revisé el código real contra el diseño — y resultó que **ya estaba
+implementado en un 95%** desde el 18-19 jul (migraciones `0024`/`0025`,
+`ai-proxy`, `PegarPedidoScreen`): el encabezado del doc y esta lista de
+pendientes simplemente nunca se actualizaron después de ese trabajo.
+
+**Lo único que faltaba de verdad**: `ai-proxy` (acción `detectar-proveedores`)
+ya calculaba `coincidencia` (mejor candidato por similitud de nombre vía
+`buscar_proveedor_similar`) para cada contacto marcado como proveedor, pero
+`ImportarContactosScreen.js` descartaba ese campo — nunca se lo mostraba al
+tendero. Corregido: mismo patrón "Ya lo tenemos: {nombre} — ¿es este?" con
+Sí/No que ya existía en `PegarPedidoScreen`. "Sí, es el mismo" vincula
+directo a `proveedores_maestro` (reactivando la relación si estaba
+desactivada — mismo patrón que `AgregarProveedorScreen`), sin pasar por
+curaduría. El botón "Agregar N proveedor(es)" queda deshabilitado hasta
+confirmar todas las coincidencias detectadas entre los seleccionados.
+
+No compite con la auto-vinculación por celular exacto (migración `0032`,
+mayor confianza) — esa sigue intentándose primero para los ítems donde el
+tendero no confirmó una coincidencia por nombre; solo cuando ninguna de las
+dos aplica, el contacto va a la cola de curaduría como antes.
+
+Sin migraciones (el backend ya estaba completo). Verificado: `node --check`
+en `screens/ImportarContactosScreen.js`. Se corrigió el encabezado de
+`docs/catalogo-matching-unidades.md` (decía "implementación pendiente",
+llevaba semanas siendo falso) y esta misma lista de pendientes, para que no
+se vuelva a perder de vista un trabajo ya terminado.
