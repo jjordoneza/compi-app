@@ -522,3 +522,48 @@ El usuario probó el build con push notifications + logo + splash y reportó
 Verificado: `node --check` en `screens/SplashScreen.js` y
 `screens/tendero/AgregarProveedorScreen.js`. Sin migraciones ni cambios de
 `apps/admin-web`.
+
+## Motor de estadísticas de mercado (anonimizadas) — 23 jul 2026
+
+El usuario pidió retomar el pendiente de monetización de datos, con una
+condición explícita: **no tocar `apps/admin-web` por ahora**. Migración
+nueva: `0043` — **no aplicada todavía, correr a mano en el SQL Editor de
+Supabase**. Verificada localmente contra Postgres 16 (forward + rollback,
+con el rol `app_authenticated` sin privilegios de superusuario).
+
+**Alcance decidido**: solo el motor (2 RPCs), sin ninguna pantalla — ni en
+`apps/admin-web` (excluido por instrucción) ni un producto externo (vender a
+un tercero implica decisiones de negocio que no me corresponde inventar:
+quién compra, en qué formato, con qué acuerdo de intercambio de datos). Esto
+deja lista la pieza técnica para conectarse a cualquiera de las dos cuando
+se decida, sin necesitar otra migración.
+
+- `estadisticas_mercado_productos(p_categoria, p_dias default 90)`: cantidad
+  total pedida por producto (con nombre/categoría), en los últimos
+  `p_dias`, opcionalmente filtrado por categoría.
+- `estadisticas_mercado_zonas(p_producto_id, p_categoria, p_dias default 90)`:
+  lo mismo pero agrupado por `ciudad`/`barrio` del comercio, para ver
+  tendencia de compra por zona.
+- **Umbral de anonimización, k=3**: ambas funciones tienen
+  `having count(distinct comercio_id) >= 3` — un agregado sostenido por
+  menos de 3 comercios distintos simplemente no se devuelve. Esto es lo que
+  hace que esto sea de verdad "estadística de mercado" y no dato personal
+  bajo la Ley 1581 de 2012: nunca se puede rastrear un resultado de vuelta a
+  un tendero identificable. Implementa directamente la salvaguarda que ya
+  prometía la Política de Privacidad (sección 4.3, migración `0040`).
+- Ninguna columna devuelta identifica un comercio (nunca `comercio_id`,
+  nunca precio pactado de una relación puntual — solo cantidades agregadas).
+- Solo admin (`is_admin()`), mismo patrón que el resto de RPCs de
+  agregados existentes (`admin_stats`, `admin_stats_por_proveedor`).
+
+Verificado con datos simulados: 4 comercios distintos comprando un mismo
+producto → aparece con `comercios_distintos = 4`; 1 solo comercio comprando
+otro producto → no aparece en ningún resultado (ni en el listado general, ni
+filtrando por su categoría, ni en el desglose por zona) — confirma que el
+umbral protege incluso cuando se filtra específicamente por ese producto.
+Filtro de `p_dias` también verificado (excluye compras fuera del rango). No-admin
+recibe `No autorizado`. Rollback limpio.
+
+**No implementado**: ninguna pantalla de consumo (ni interna ni externa) —
+es trabajo aparte, para cuando se decida a quién mostrarle/venderle esto y
+en qué formato.
