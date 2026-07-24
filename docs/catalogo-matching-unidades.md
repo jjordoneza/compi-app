@@ -1,8 +1,10 @@
 # Curaduría por coincidencia + estandarización de unidades — diseño
 
-**Estado**: diseño aprobado, implementación pendiente (no incluida en Fase 3 de
-gap #2 — es una mejora de seguimiento que reduce cuánto se usa la cola de
-curaduría, no un prerequisito para activarla).
+**Estado**: ✅ implementado (18-19 jul 2026, migraciones `0024`/`0025` +
+`ai-proxy` + `PegarPedidoScreen`; completado 23 jul 2026 con la UI que
+faltaba en `ImportarContactosScreen` — ver detalle abajo). Esta línea de
+"Estado" había quedado desactualizada — la implementación real ya pasó,
+solo nadie corrigió el encabezado del documento.
 
 ## Problema
 
@@ -80,6 +82,20 @@ las reutilice, en vez de duplicar lógica de fuzzy-matching en cada lugar.
 - **Genuinamente nuevo**: *"Producto nuevo — se envía a revisión, no podrás
   pedirlo hasta que se apruebe"* — expectativa honesta de que no está
   disponible de inmediato.
+
+**Nota de implementación (23 jul 2026)**: `PegarPedidoScreen` ya tenía este
+patrón completo desde el 18-19 jul. `ImportarContactosScreen` en cambio solo
+usaba `buscar_proveedor_similar` para clasificar contactos, pero descartaba
+el campo `coincidencia` que `ai-proxy` ya calculaba — nunca se lo mostraba al
+tendero. Se conectó: cada contacto seleccionado con `coincidencia` ahora
+muestra la misma caja "Ya lo tenemos... ¿es este?" con Sí/No, y "Sí, es el
+mismo" vincula directo a `proveedores_maestro` (reactivando la relación si
+estaba desactivada, mismo patrón que `AgregarProveedorScreen`) sin pasar por
+curaduría. El botón de guardar queda deshabilitado hasta que todas las
+coincidencias detectadas se confirmen (igual que `PegarPedidoScreen`). No
+reemplaza la auto-vinculación por celular (migración 0032) — esa sigue
+corriendo primero de facto porque es más confiable (celular exacto); esta
+confirmación por nombre solo aplica cuando el tendero la aprueba a mano.
 
 ## Relación con Fase 3
 

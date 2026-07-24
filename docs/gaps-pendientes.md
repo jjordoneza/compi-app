@@ -268,7 +268,7 @@ Verificado: `node --check` en todos los `.js` de `screens/` + `constants.js`; `n
 
 - **Términos de uso / política de privacidad**: ✅ primer borrador escrito (22 jul 2026) — ver sección nueva abajo. Sigue pendiente que un abogado los revise antes de publicarlos, y llenar los `[COMPLETAR: ...]` con datos reales de la empresa. `ImportarContactosScreen` envía contactos reales (nombres de terceros) a la API de Anthropic vía `ai-proxy` para clasificación — ya cubierto en la política nueva (sección "con quién compartimos datos").
 - **`pedidos.estado`** en datos sembrados: ya resuelto (sincronizado a `entregado` para Minimercado La 80).
-- **`docs/catalogo-matching-unidades.md`** (curaduría-por-coincidencia + estandarización de unidades): diseño completo y aprobado, implementación pausada explícitamente hasta después de gap #2 Fase 3. Fase 3 ya está en producción — **retomable ahora**, si se quiere priorizar sobre Fase 4 o en paralelo.
+- **`docs/catalogo-matching-unidades.md`** — ✅ resuelto por completo (23 jul 2026). Esta entrada decía "retomable ahora" pero estaba obsoleta: la implementación real ya había pasado el 18-19 jul (migraciones `0024`/`0025`, `ai-proxy`, `PegarPedidoScreen`) — solo nadie actualizó el encabezado del doc ni esta lista. Al revisar para "retomarlo" se encontró que faltaba una sola pieza (la UI de confirmación de coincidencia para proveedores en `ImportarContactosScreen`, que `ai-proxy` ya calculaba pero la pantalla descartaba) — ver sección nueva abajo para el detalle completo.
 
 ## Logo animado + términos/privacidad — 22 jul 2026
 
@@ -522,3 +522,131 @@ El usuario probó el build con push notifications + logo + splash y reportó
 Verificado: `node --check` en `screens/SplashScreen.js` y
 `screens/tendero/AgregarProveedorScreen.js`. Sin migraciones ni cambios de
 `apps/admin-web`.
+
+## Motor de estadísticas de mercado (anonimizadas) — 23 jul 2026
+
+El usuario pidió retomar el pendiente de monetización de datos, con una
+condición explícita: **no tocar `apps/admin-web` por ahora**. Migración
+nueva: `0043` — **no aplicada todavía, correr a mano en el SQL Editor de
+Supabase**. Verificada localmente contra Postgres 16 (forward + rollback,
+con el rol `app_authenticated` sin privilegios de superusuario).
+
+**Alcance decidido**: solo el motor (2 RPCs), sin ninguna pantalla — ni en
+`apps/admin-web` (excluido por instrucción) ni un producto externo (vender a
+un tercero implica decisiones de negocio que no me corresponde inventar:
+quién compra, en qué formato, con qué acuerdo de intercambio de datos). Esto
+deja lista la pieza técnica para conectarse a cualquiera de las dos cuando
+se decida, sin necesitar otra migración.
+
+- `estadisticas_mercado_productos(p_categoria, p_dias default 90)`: cantidad
+  total pedida por producto (con nombre/categoría), en los últimos
+  `p_dias`, opcionalmente filtrado por categoría.
+- `estadisticas_mercado_zonas(p_producto_id, p_categoria, p_dias default 90)`:
+  lo mismo pero agrupado por `ciudad`/`barrio` del comercio, para ver
+  tendencia de compra por zona.
+- **Umbral de anonimización, k=3**: ambas funciones tienen
+  `having count(distinct comercio_id) >= 3` — un agregado sostenido por
+  menos de 3 comercios distintos simplemente no se devuelve. Esto es lo que
+  hace que esto sea de verdad "estadística de mercado" y no dato personal
+  bajo la Ley 1581 de 2012: nunca se puede rastrear un resultado de vuelta a
+  un tendero identificable. Implementa directamente la salvaguarda que ya
+  prometía la Política de Privacidad (sección 4.3, migración `0040`).
+- Ninguna columna devuelta identifica un comercio (nunca `comercio_id`,
+  nunca precio pactado de una relación puntual — solo cantidades agregadas).
+- Solo admin (`is_admin()`), mismo patrón que el resto de RPCs de
+  agregados existentes (`admin_stats`, `admin_stats_por_proveedor`).
+
+Verificado con datos simulados: 4 comercios distintos comprando un mismo
+producto → aparece con `comercios_distintos = 4`; 1 solo comercio comprando
+otro producto → no aparece en ningún resultado (ni en el listado general, ni
+filtrando por su categoría, ni en el desglose por zona) — confirma que el
+umbral protege incluso cuando se filtra específicamente por ese producto.
+Filtro de `p_dias` también verificado (excluye compras fuera del rango). No-admin
+recibe `No autorizado`. Rollback limpio.
+
+**No implementado**: ninguna pantalla de consumo (ni interna ni externa) —
+es trabajo aparte, para cuando se decida a quién mostrarle/venderle esto y
+en qué formato.
+
+## Cierre real de "curaduría por coincidencia" (`docs/catalogo-matching-unidades.md`) — 23 jul 2026
+
+El usuario pidió retomar este pendiente (le expliqué la idea con una
+analogía: hoy cada proveedor describe el mismo producto distinto, y sin
+esto el sistema no reconoce que es el mismo SKU). Antes de reescribir nada,
+revisé el código real contra el diseño — y resultó que **ya estaba
+implementado en un 95%** desde el 18-19 jul (migraciones `0024`/`0025`,
+`ai-proxy`, `PegarPedidoScreen`): el encabezado del doc y esta lista de
+pendientes simplemente nunca se actualizaron después de ese trabajo.
+
+**Lo único que faltaba de verdad**: `ai-proxy` (acción `detectar-proveedores`)
+ya calculaba `coincidencia` (mejor candidato por similitud de nombre vía
+`buscar_proveedor_similar`) para cada contacto marcado como proveedor, pero
+`ImportarContactosScreen.js` descartaba ese campo — nunca se lo mostraba al
+tendero. Corregido: mismo patrón "Ya lo tenemos: {nombre} — ¿es este?" con
+Sí/No que ya existía en `PegarPedidoScreen`. "Sí, es el mismo" vincula
+directo a `proveedores_maestro` (reactivando la relación si estaba
+desactivada — mismo patrón que `AgregarProveedorScreen`), sin pasar por
+curaduría. El botón "Agregar N proveedor(es)" queda deshabilitado hasta
+confirmar todas las coincidencias detectadas entre los seleccionados.
+
+No compite con la auto-vinculación por celular exacto (migración `0032`,
+mayor confianza) — esa sigue intentándose primero para los ítems donde el
+tendero no confirmó una coincidencia por nombre; solo cuando ninguna de las
+dos aplica, el contacto va a la cola de curaduría como antes.
+
+Sin migraciones (el backend ya estaba completo). Verificado: `node --check`
+en `screens/ImportarContactosScreen.js`. Se corrigió el encabezado de
+`docs/catalogo-matching-unidades.md` (decía "implementación pendiente",
+llevaba semanas siendo falso) y esta misma lista de pendientes, para que no
+se vuelva a perder de vista un trabajo ya terminado.
+
+## Catálogo semilla de productos (500+ SKUs) — 23 jul 2026
+
+Retoma la idea de "path 1 vs path 2" (comprar/adaptar una base ya construida
+vs. construirla propia) que se discutió al hablar de monetización de datos.
+Se descartó comprar una base externa (no existe una formal que calce con lo
+que vende un distribuidor informal a tienda de barrio) — en su lugar, el
+usuario pidió sembrar `productos_maestro` con un catálogo curado a mano, para
+que el motor de coincidencia por similitud (ya implementado, ver entrada de
+arriba) tenga volumen real desde el día uno en vez de depender solo de la
+curaduría orgánica. Decisiones del usuario: alcance **nacional** (no solo
+Medellín), **500+ SKUs**, y **solo marcas tradicionales** (Postobón,
+Bavaria, Alpina, Familia, Bimbo, Zenú, Diana, Fruco, Noel, etc. — nada de
+marcas propias de grandes superficies como Ara/D1, porque la idea es
+reflejar lo que un distribuidor/mayorista real le entrega a una tienda).
+
+Migración nueva: `0044` — **no aplicada todavía, correr a mano en el SQL
+Editor de Supabase (después de `0040`-`0043`)**. Verificada localmente
+contra Postgres 16 (forward + rollback).
+
+**518 productos** curados a mano, cubriendo las 10 categorías del vocabulario
+ya fijo en `ai-proxy` (Bebidas 100, Granos y abarrotes 105, Aseo 80, Snacks
+61, Verduras y frutas 44, Lácteos 43, Cigarrería 29, Carnes 26, Panadería 20,
+Huevos 10), cada uno con `categoria`/`marca`/`unidad_base`/`presentacion` ya
+completos (no quedan en `null` esperando backfill, a diferencia de productos
+creados por curaduría antes de la migración `0024`).
+
+**Inserción "inteligente" (calibrada, no solo "parece razonable")**: probé
+contra Postgres local que la similitud de nombre **por sí sola** no alcanza
+para distinguir duplicados de productos genuinamente distintos en este
+catálogo — `similarity('Leche Alpina Entera 1.1L', 'Leche Alquería Entera
+1.1L')` da 0.61 (marcas distintas), **más alto** que un duplicado real como
+`similarity('Coca Cola 1.5 Litros', 'Coca-Cola 1.5L')` = 0.52 (mismo
+producto, solo escrito distinto). Un único umbral de similitud habría
+producido falsos positivos (fusionar Alpina con Alquería) o falsos negativos
+(no reconocer el duplicado de Coca-Cola), según dónde se pusiera la barra.
+Se corrigió exigiendo, además de similitud de nombre, que la **marca
+coincida** (`lower(trim(pm.marca)) = lower(trim(seed.marca))`) — con
+marca+categoría ya como filtro, el umbral de nombre baja a 0.45 con
+seguridad (solo compara variantes de tamaño/escritura dentro de la misma
+marca). Verificado con datos simulados: 2 productos "orgánicos" preexistentes
+con nombres distintos a la semilla pero mismo producto real (`Coca Cola 1.5
+Litros`, `Cerveza Aguila 330 lata`) — la semilla NO los duplicó (los
+detectó y se saltó las filas equivalentes); un producto sin relación
+(`Producto Totalmente Distinto XYZ`) no se vio afectado. Rollback probado:
+elimina exactamente las filas sembradas (match exacto en los 5 campos),
+deja intactas las 3 preexistentes.
+
+Sin cambios en `apps/admin-web` ni en la app RN — es puro contenido de base
+de datos, consumido automáticamente por el motor de matching que ya existe
+en `PegarPedidoScreen`/`ImportarContactosScreen`/`ai-proxy`.
