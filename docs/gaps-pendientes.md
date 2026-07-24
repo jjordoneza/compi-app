@@ -599,3 +599,54 @@ en `screens/ImportarContactosScreen.js`. Se corrigió el encabezado de
 `docs/catalogo-matching-unidades.md` (decía "implementación pendiente",
 llevaba semanas siendo falso) y esta misma lista de pendientes, para que no
 se vuelva a perder de vista un trabajo ya terminado.
+
+## Catálogo semilla de productos (500+ SKUs) — 23 jul 2026
+
+Retoma la idea de "path 1 vs path 2" (comprar/adaptar una base ya construida
+vs. construirla propia) que se discutió al hablar de monetización de datos.
+Se descartó comprar una base externa (no existe una formal que calce con lo
+que vende un distribuidor informal a tienda de barrio) — en su lugar, el
+usuario pidió sembrar `productos_maestro` con un catálogo curado a mano, para
+que el motor de coincidencia por similitud (ya implementado, ver entrada de
+arriba) tenga volumen real desde el día uno en vez de depender solo de la
+curaduría orgánica. Decisiones del usuario: alcance **nacional** (no solo
+Medellín), **500+ SKUs**, y **solo marcas tradicionales** (Postobón,
+Bavaria, Alpina, Familia, Bimbo, Zenú, Diana, Fruco, Noel, etc. — nada de
+marcas propias de grandes superficies como Ara/D1, porque la idea es
+reflejar lo que un distribuidor/mayorista real le entrega a una tienda).
+
+Migración nueva: `0044` — **no aplicada todavía, correr a mano en el SQL
+Editor de Supabase (después de `0040`-`0043`)**. Verificada localmente
+contra Postgres 16 (forward + rollback).
+
+**518 productos** curados a mano, cubriendo las 10 categorías del vocabulario
+ya fijo en `ai-proxy` (Bebidas 100, Granos y abarrotes 105, Aseo 80, Snacks
+61, Verduras y frutas 44, Lácteos 43, Cigarrería 29, Carnes 26, Panadería 20,
+Huevos 10), cada uno con `categoria`/`marca`/`unidad_base`/`presentacion` ya
+completos (no quedan en `null` esperando backfill, a diferencia de productos
+creados por curaduría antes de la migración `0024`).
+
+**Inserción "inteligente" (calibrada, no solo "parece razonable")**: probé
+contra Postgres local que la similitud de nombre **por sí sola** no alcanza
+para distinguir duplicados de productos genuinamente distintos en este
+catálogo — `similarity('Leche Alpina Entera 1.1L', 'Leche Alquería Entera
+1.1L')` da 0.61 (marcas distintas), **más alto** que un duplicado real como
+`similarity('Coca Cola 1.5 Litros', 'Coca-Cola 1.5L')` = 0.52 (mismo
+producto, solo escrito distinto). Un único umbral de similitud habría
+producido falsos positivos (fusionar Alpina con Alquería) o falsos negativos
+(no reconocer el duplicado de Coca-Cola), según dónde se pusiera la barra.
+Se corrigió exigiendo, además de similitud de nombre, que la **marca
+coincida** (`lower(trim(pm.marca)) = lower(trim(seed.marca))`) — con
+marca+categoría ya como filtro, el umbral de nombre baja a 0.45 con
+seguridad (solo compara variantes de tamaño/escritura dentro de la misma
+marca). Verificado con datos simulados: 2 productos "orgánicos" preexistentes
+con nombres distintos a la semilla pero mismo producto real (`Coca Cola 1.5
+Litros`, `Cerveza Aguila 330 lata`) — la semilla NO los duplicó (los
+detectó y se saltó las filas equivalentes); un producto sin relación
+(`Producto Totalmente Distinto XYZ`) no se vio afectado. Rollback probado:
+elimina exactamente las filas sembradas (match exacto en los 5 campos),
+deja intactas las 3 preexistentes.
+
+Sin cambios en `apps/admin-web` ni en la app RN — es puro contenido de base
+de datos, consumido automáticamente por el motor de matching que ya existe
+en `PegarPedidoScreen`/`ImportarContactosScreen`/`ai-proxy`.
